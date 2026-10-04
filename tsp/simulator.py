@@ -5,6 +5,7 @@ import random
 import math
 
 from .instance import TSPInstance
+from .transition_kernel import TSPTransitionKernel
 
 
 class TSPSimulator:
