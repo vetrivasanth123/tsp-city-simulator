@@ -25,7 +25,7 @@ def main():
         choices=["circle", "square", "rectangle"],
         required=True,
     )
-    parser.add_argument("--pickup-nodes", type=int, required=True)
+    parser.add_argument("--user-nodes", type=int, required=True)
     parser.add_argument("--city-radius", type=float)
     parser.add_argument("--city-size", type=float)
     parser.add_argument("--city-width", type=float)
@@ -38,7 +38,7 @@ def main():
         height=args.height,
         n_cities=args.n_cities,
         seed=args.seed,
-        pickup_nodes_per_city=args.pickup_nodes,
+        user_nodes_per_city=args.user_nodes,
         city_shape=args.city_shape,
         city_radius=args.city_radius,
         city_size=args.city_size,
@@ -69,7 +69,7 @@ def main():
     print("Grid:", f"{args.width} x {args.height}")
     print("Number of cities:", instance.num_cities)
     print("City shape:", args.city_shape)
-    print("Pickup nodes per city:", args.pickup_nodes)
+    print("User nodes per city:", args.user_nodes)
 
     print("\nCities:")
     for city in cities:
@@ -124,7 +124,7 @@ def main():
             ],
             "city": {
                 **cities[current_city],
-                "facility": {
+                "pickup": {
                     "location": [
                         float(cities[current_city]["center"][0]),
                         float(cities[current_city]["center"][1]),
@@ -162,7 +162,7 @@ def main():
         ],
         "city": {
             **cities[current_city],
-            "facility": {
+            "pickup": {
                 "location": [
                     float(cities[current_city]["center"][0]),
                     float(cities[current_city]["center"][1]),
