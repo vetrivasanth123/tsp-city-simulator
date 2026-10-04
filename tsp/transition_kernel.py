@@ -44,7 +44,7 @@ class TSPTransitionKernel:
 
         current_location = self.instance.cities[
             current_city
-        ]["facility"]["location"]
+        ]["pickup"]["location"]
 
         # Calculate slip weights only for alternatives to the intended action.
         slip_candidates = [
@@ -60,7 +60,7 @@ class TSPTransitionKernel:
         for candidate in slip_candidates:
             candidate_location = self.instance.cities[
                 candidate
-            ]["facility"]["location"]
+            ]["pickup"]["location"]
 
             squared_distance = sum(
                 (candidate_location[i] - current_location[i]) ** 2
