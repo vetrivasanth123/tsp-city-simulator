@@ -19,14 +19,12 @@ class TSPSimulator:
     ) -> None:
         self.instance = instance
         self._rng = random.Random(seed)
-        self.kappa = kappa
-        self.beta = beta
     
         self.transition_model = TSPTransitionKernel(
             instance=self.instance,
             rng=self._rng,
-            kappa=self.kappa,
-            beta=self.beta,
+            kappa=kappa,
+            beta=beta,
         )
 
     def reset(self, start_city: int | None = None) -> dict[str, Any]:
