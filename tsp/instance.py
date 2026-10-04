@@ -74,35 +74,35 @@ class TSPInstance:
                         f"City {i} center does not match its coordinate."
                     )
 
-                # Facility information.
-                if "facility" not in city:
+                # Pickup node  information.
+                if "pickup" not in city:
                     raise ValueError(
-                        f"City {i} is missing 'facility'."
+                        f"City {i} is missing 'pickup'."
                     )
 
-                facility = city["facility"]
+                pickup = city["pickup"]
 
-                if not isinstance(facility, dict):
+                if not isinstance(pickup, dict):
                     raise ValueError(
-                        f"City {i} facility must be a dictionary."
+                        f"City {i} pickup must be a dictionary."
                     )
 
-                if "location" not in facility:
+                if "location" not in pickup:
                     raise ValueError(
-                        f"City {i} facility is missing 'location'."
+                        f"City {i} pickup is missing 'location'."
                     )
 
-                facility_location = np.asarray(
-                    facility["location"],
+                pickup_location = np.asarray(
+                    pickup["location"],
                     dtype=float,
                 )
 
                 if (
-                    facility_location.shape != (2,)
-                    or not np.all(np.isfinite(facility_location))
+                    pickup_location.shape != (2,)
+                    or not np.all(np.isfinite(pickup_location))
                 ):
                     raise ValueError(
-                        f"City {i} has an invalid facility location."
+                        f"City {i} has an invalid pickup location."
                     )
 
         self.distance_matrix = euclidean_distance_matrix(coordinates)
