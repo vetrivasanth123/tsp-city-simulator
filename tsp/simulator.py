@@ -5,7 +5,6 @@ import random
 import math
 
 from .instance import TSPInstance
-from .transition_kernel import TSPTransitionKernel
 
 
 class TSPSimulator:
@@ -22,12 +21,6 @@ class TSPSimulator:
         self._rng = random.Random(seed)
         self.kappa = kappa
         self.beta = beta
-        self.transition_model = TSPTransitionKernel(
-            instance=self.instance,
-            rng=self._rng,
-            kappa=self.kappa,
-            beta=self.beta,
-        )
         if not 0 < self.kappa <= 1:
             raise ValueError("kappa must satisfy 0 < kappa <= 1.")
         
@@ -98,8 +91,6 @@ class TSPSimulator:
         ]
         
         weights = {}
-
-        squared_distances = {}
         
         for candidate in slip_candidates:
             candidate_location = self.instance.cities[
@@ -111,16 +102,9 @@ class TSPSimulator:
                 for i in range(len(current_location))
             )
         
-            squared_distances[candidate] = squared_distance
-        
-        if slip_candidates:
-            min_squared_distance = min(squared_distances.values())
-        
-            for candidate in slip_candidates:
-                weights[candidate] = math.exp(
-                    -self.beta
-                    * (squared_distances[candidate] - min_squared_distance)
-                )
+            weights[candidate] = math.exp(
+                -self.beta * squared_distance
+            )
         
         if slip_candidates:
             denominator = sum(weights.values())
@@ -186,10 +170,8 @@ class TSPSimulator:
                 "Episode is already complete. Call reset()."
             )
     
-        actual_action, transition_info = self.transition_model.sample(
-            current_city=self.current_city,
-            available_actions=self.available_actions(),
-            intended_action=intended_action,
+        actual_action, transition_info = self.transition_kernel(
+            intended_action
         )
     
         step_cost = self.instance.cost(
