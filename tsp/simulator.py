@@ -186,8 +186,10 @@ class TSPSimulator:
                 "Episode is already complete. Call reset()."
             )
     
-        actual_action, transition_info = self.transition_kernel(
-            intended_action
+        actual_action, transition_info = self.transition_model.sample(
+            current_city=self.current_city,
+            available_actions=self.available_actions(),
+            intended_action=intended_action,
         )
     
         step_cost = self.instance.cost(
