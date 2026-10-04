@@ -91,6 +91,8 @@ class TSPSimulator:
         ]
         
         weights = {}
+
+        squared_distances = {}
         
         for candidate in slip_candidates:
             candidate_location = self.instance.cities[
@@ -102,9 +104,16 @@ class TSPSimulator:
                 for i in range(len(current_location))
             )
         
-            weights[candidate] = math.exp(
-                -self.beta * squared_distance
-            )
+            squared_distances[candidate] = squared_distance
+        
+        if slip_candidates:
+            min_squared_distance = min(squared_distances.values())
+        
+            for candidate in slip_candidates:
+                weights[candidate] = math.exp(
+                    -self.beta
+                    * (squared_distances[candidate] - min_squared_distance)
+                )
         
         if slip_candidates:
             denominator = sum(weights.values())
