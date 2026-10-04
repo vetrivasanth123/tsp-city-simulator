@@ -35,6 +35,7 @@ class TSPTransitionKernel:
         intended_action: int,
     ) -> tuple[int, dict[str, Any]]:
         """Sample the actual next city using the stochastic transition model."""
+        print(">>> USING TSPTransitionKernel.sample() FROM transition_kernel.py")
 
         if intended_action not in available_actions:
             raise ValueError(
