@@ -19,6 +19,8 @@ class TSPSimulator:
     ) -> None:
         self.instance = instance
         self._rng = random.Random(seed)
+        self.kappa = kappa
+        self.beta = beta
     
         self.transition_model = TSPTransitionKernel(
             instance=self.instance,
