@@ -3,7 +3,7 @@ import random
 
 
 class CityLocationGenerator:
-    """Generate non-overlapping city regions and pickup nodes."""
+    """Generate non-overlapping city regions and user nodes."""
 
     def __init__(
         self,
@@ -11,7 +11,7 @@ class CityLocationGenerator:
         height,
         n_cities,
         seed=None,
-        pickup_nodes_per_city=1,
+        user_nodes_per_city=1,
         city_shape="circle",
         city_radius=None,
         city_size=None,
@@ -22,13 +22,13 @@ class CityLocationGenerator:
             raise ValueError("Grid width and height must be positive.")
         if n_cities < 2:
             raise ValueError("n_cities must be at least 2.")
-        if pickup_nodes_per_city < 1:
-            raise ValueError("pickup_nodes_per_city must be at least 1.")
+        if user_nodes_per_city < 1:
+            raise ValueError("user_nodes_per_city must be at least 1.")
 
         self.width = float(width)
         self.height = float(height)
         self.n_cities = int(n_cities)
-        self.pickup_nodes_per_city = int(pickup_nodes_per_city)
+        self.user_nodes_per_city = int(user_nodes_per_city)
         self.city_shape = city_shape.lower()
 
         self.city_radius = city_radius
@@ -240,8 +240,8 @@ class CityLocationGenerator:
             "center": [float(center[0]), float(center[1])],
             "rotation": 0.0,
             "geometry": geometry,
-            "pickup_nodes": [],
-            "facility": {
+            "user_nodes": [],
+            "pickup": {
                 "location": [float(center[0]), float(center[1])],
                 "type": "temporary_center",
             },
@@ -263,13 +263,13 @@ class CityLocationGenerator:
             and abs(y - cy) < h / 2
         )
 
-    def _generate_pickup_nodes(self, city):
+    def _generate_user_nodes(self, city):
         nodes = []
 
         max_attempts = 10000
         attempts = 0
         
-        while len(nodes) < self.pickup_nodes_per_city and attempts < max_attempts:
+        while len(nodes) < self.user_nodes_per_city and attempts < max_attempts:
             attempts += 1
         
             if city["shape"] == "circle":
@@ -289,17 +289,17 @@ class CityLocationGenerator:
             if self._point_inside(city, point) and point not in nodes:
                 nodes.append(point)
         
-        if len(nodes) < self.pickup_nodes_per_city:
+        if len(nodes) < self.user_nodes_per_city:
             raise RuntimeError(
-                f"Could not generate {self.pickup_nodes_per_city} pickup nodes "
+                f"Could not generate {self.user_nodes_per_city} user nodes "
                 f"inside city {city['city_id']} after {max_attempts} attempts. "
-                f"Try reducing pickup_nodes_per_city or increasing city dimensions."
+                f"Try reducing user_nodes_per_city or increasing city dimensions."
             )
         
-        city["pickup_nodes"] = nodes
+        city["user_nodes"] = nodes
 
     def generate(self):
-        """Generate all city regions and pickup nodes."""
+        """Generate all city regions and user nodes."""
         max_attempts = 10000
         max_restarts = 100
     
@@ -318,7 +318,7 @@ class CityLocationGenerator:
                         self._overlap(city, existing)
                         for existing in self.cities
                     ):
-                        self._generate_pickup_nodes(city)
+                        self._generate_user_nodes(city)
                         self.cities.append(city)
                         self.coordinates.append(city["center"])
                         placed = True
@@ -343,5 +343,5 @@ class CityLocationGenerator:
         return [list(point) for point in self.coordinates]
 
     def get_cities(self):
-        """Return complete city-region and pickup-node information."""
+        """Return complete city-region and user-node information."""
         return self.cities
