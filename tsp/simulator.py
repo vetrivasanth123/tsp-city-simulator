@@ -19,19 +19,13 @@ class TSPSimulator:
     ) -> None:
         self.instance = instance
         self._rng = random.Random(seed)
-        self.kappa = kappa
-        self.beta = beta
+    
         self.transition_model = TSPTransitionKernel(
             instance=self.instance,
             rng=self._rng,
             kappa=self.kappa,
             beta=self.beta,
         )
-        if not 0 < self.kappa <= 1:
-            raise ValueError("kappa must satisfy 0 < kappa <= 1.")
-        
-        if not 0 <= self.beta <= 1:
-            raise ValueError("beta must satisfy 0 <= beta <= 1.")
 
     def reset(self, start_city: int | None = None) -> dict[str, Any]:
         """Start a new episode at the specified start city."""
