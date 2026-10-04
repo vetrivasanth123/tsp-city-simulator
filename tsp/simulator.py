@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 import random
-import math
 
 from .instance import TSPInstance
 from .transition_kernel import TSPTransitionKernel
@@ -66,117 +65,7 @@ class TSPSimulator:
             city
             for city in range(self.instance.num_cities)
             if city not in visited
-        ]
-        
-    def transition_kernel(
-        self,
-        intended_action: int,
-    ) -> tuple[int, dict[str, Any]]:
-        """Sample the actual next city using the stochastic transition kernel."""
-
-        if self.done:
-            raise RuntimeError(
-                "Episode is already complete. Call reset()."
-            )
-
-        available = self.available_actions()
-
-        if intended_action not in available:
-            raise ValueError(
-                f"Intended action {intended_action} is not available. "
-                f"Available actions: {available}"
-            )
-
-        current_location = self.instance.cities[
-            self.current_city
-        ]["facility"]["location"]
-
-        # Calculate slip weights only for alternatives to the intended action.
-        slip_candidates = [
-            candidate for candidate in available
-            if candidate != intended_action
-        ]
-        
-        weights = {}
-
-        squared_distances = {}
-        
-        for candidate in slip_candidates:
-            candidate_location = self.instance.cities[
-                candidate
-            ]["facility"]["location"]
-        
-            squared_distance = sum(
-                (candidate_location[i] - current_location[i]) ** 2
-                for i in range(len(current_location))
-            )
-        
-            squared_distances[candidate] = squared_distance
-        
-        if slip_candidates:
-            min_squared_distance = min(squared_distances.values())
-        
-            for candidate in slip_candidates:
-                weights[candidate] = math.exp(
-                    -self.beta
-                    * (squared_distances[candidate] - min_squared_distance)
-                )
-        
-        if slip_candidates:
-            denominator = sum(weights.values())
-        
-            slip_probabilities = {
-                candidate: weights[candidate] / denominator
-                for candidate in slip_candidates
-            }
-        else:
-            slip_probabilities = {}
-        
-        # Complete transition distribution.
-        if not slip_candidates:
-            transition_probabilities = {
-                intended_action: 1.0
-            }
-        else:
-            transition_probabilities = {
-                candidate: (
-                    self.kappa
-                    if candidate == intended_action
-                    else (1.0 - self.kappa) * slip_probabilities[candidate]
-                )
-                for candidate in available
-            }
-        
-        probability_sum = sum(transition_probabilities.values())
-        
-        if not math.isclose(
-            probability_sum,
-            1.0,
-            rel_tol=1e-9,
-            abs_tol=1e-9,
-        ):
-            raise ValueError(
-                f"Transition probabilities must sum to 1. "
-                f"Got {probability_sum}."
-            )
-        # Sample the actual action from the transition distribution.
-        actual_action = self._rng.choices(
-            population=list(transition_probabilities.keys()),
-            weights=list(transition_probabilities.values()),
-            k=1,
-        )[0]
-
-        transition_info = {
-            "current_city": self.current_city,
-            "available_actions": list(available),
-            "intended_action": intended_action,
-            "slip_probabilities": slip_probabilities,
-            "transition_probabilities": transition_probabilities,
-            "actual_action": actual_action,
-            "slipped": actual_action != intended_action,
-        }
-
-        return actual_action, transition_info  
+        ] 
         
     def step(self, intended_action: int) -> dict[str, Any]:
         """Execute an intended action through the stochastic transition kernel."""
