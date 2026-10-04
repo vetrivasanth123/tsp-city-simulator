@@ -53,22 +53,22 @@ def plot_cities(instance, ax=None):
                 textcoords="offset points",
             )
 
-            # Pickup nodes
-            pickup_nodes = city.get("pickup_nodes", [])
-            if pickup_nodes:
-                pickup_xy = np.asarray(pickup_nodes, dtype=float)
+            # User nodes
+            user_nodes = city.get("user_nodes", [])
+            if user_nodes:
+                user_xy = np.asarray(user_nodes, dtype=float)
                 ax.scatter(
-                    pickup_xy[:, 0],
-                    pickup_xy[:, 1],
+                    user_xy[:, 0],
+                    user_xy[:, 1],
                     s=35,
                     marker="o",
                     zorder=3,
                 )
 
-            # Facility
-            facility = city.get("facility")
-            if facility is not None:
-                fx, fy = facility["location"]
+            # Pickup
+            pickup = city.get("pickup")
+            if pickup is not None:
+                fx, fy = pickup["location"]
                 ax.scatter(
                     fx, fy,
                     s=130,
@@ -112,7 +112,7 @@ def plot_tour(instance, tour, ax=None, title="TSP Tour"):
     if instance.cities is not None:
         xy = np.asarray(
             [
-                instance.cities[i]["facility"]["location"]
+                instance.cities[i]["pickup"]["location"]
                 for i in route
             ],
             dtype=float,
@@ -241,7 +241,7 @@ def animate_simulation(
     if instance.cities is not None:
         xy = np.asarray(
             [
-                city["facility"]["location"]
+                city["pickup"]["location"]
                 for city in instance.cities
             ],
             dtype=float,
