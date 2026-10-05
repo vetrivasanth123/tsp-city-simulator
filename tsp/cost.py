@@ -41,6 +41,49 @@ def tour_cost(
 
     return total
 
+def city_internal_cost(
+    instance: TSPInstance,
+    city_id: int,
+) -> float:
+    """Return the current internal cost of one city."""
+
+    if instance.cities is None:
+        raise ValueError(
+            "Internal cost requires complete city data with user nodes "
+            "and pickup locations."
+        )
+
+    if not isinstance(city_id, (int, np.integer)):
+        raise TypeError("city_id must be an integer.")
+
+    if not 0 <= city_id < instance.num_cities:
+        raise IndexError(
+            f"City index {city_id} is out of range "
+            f"for {instance.num_cities} cities."
+        )
+
+    city = instance.cities[city_id]
+
+    pickup_location = np.asarray(
+        city["pickup"]["location"],
+        dtype=float,
+    )
+
+    total = 0.0
+
+    for user_node in city["user_nodes"]:
+        user_location = np.asarray(
+            user_node,
+            dtype=float,
+        )
+
+        total += float(
+            np.linalg.norm(
+                user_location - pickup_location
+            )
+        )
+
+    return total
 def internal_cost_details(
     instance: TSPInstance,
 ) -> dict:
