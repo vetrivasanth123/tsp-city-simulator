@@ -6,7 +6,7 @@ from gymnasium import spaces
 
 from .instance import TSPInstance
 from .simulator import TSPSimulator
-from .cost import transition_cost
+from .cost import transition_cost, city_internal_cost
 
 
 class TSPEnv(gym.Env):
@@ -59,11 +59,18 @@ class TSPEnv(gym.Env):
             state = self.simulator.close_tour()
 
             if current_city != start_city:
-                step_cost = transition_cost(
+                transition_step_cost = transition_cost(
                     self.instance,
                     current_city,
                     start_city,
                 )
+            
+                internal_step_cost = city_internal_cost(
+                    self.instance,
+                    current_city,
+                )
+            
+                step_cost = transition_step_cost + internal_step_cost
             else:
                 step_cost = 0.0
 
@@ -87,12 +94,19 @@ class TSPEnv(gym.Env):
 
         actual_city = state["current_city"]
 
-        step_cost = transition_cost(
+        transition_step_cost = transition_cost(
             self.instance,
             current_city,
             actual_city,
         )
-
+        
+        internal_step_cost = city_internal_cost(
+            self.instance,
+            current_city,
+        )
+        
+        step_cost = transition_step_cost + internal_step_cost
+        
         self.total_cost += step_cost
         reward = -step_cost
 
@@ -127,3 +141,4 @@ class TSPEnv(gym.Env):
             "available_actions": list(state["available_actions"]),
             "total_cost": float(self.total_cost),
         }
+    
