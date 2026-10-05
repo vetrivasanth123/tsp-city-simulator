@@ -9,6 +9,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from tsp.city_generator import CityLocationGenerator
 from tsp.instance import TSPInstance
 from tsp.env import TSPEnv
+from tsp.cost import transition_cost, city_internal_cost, internal_cost_details
 import tsp.visualization as visualization
 
 
@@ -126,10 +127,10 @@ def main():
                 **cities[current_city],
                 "pickup": {
                     "location": [
-                        float(cities[current_city]["center"][0]),
-                        float(cities[current_city]["center"][1]),
+                        float(cities[current_city]["pickup"]["location"][0]),
+                        float(cities[current_city]["pickup"]["location"][1]),
                     ],
-                    "type": "temporary_center",
+                    "type": cities[current_city]["pickup"]["type"],
                 },
             },
             "available_actions": list(transition["available_actions"]),
@@ -144,6 +145,19 @@ def main():
             },
             "actual_action": int(transition["actual_action"]),
             "slipped": bool(transition["slipped"]),
+            "transition_cost": float(
+                transition_cost(
+                    instance,
+                    current_city,
+                    actual_action,
+                )
+            ),
+            "internal_cost": float(
+                city_internal_cost(
+                    instance,
+                    current_city,
+                )
+            ),
             "step_cost": float(-reward),
             "reward": float(reward),
             "visited_mask": obs["visited_mask"].tolist(),
@@ -164,13 +178,26 @@ def main():
             **cities[current_city],
             "pickup": {
                 "location": [
-                    float(cities[current_city]["center"][0]),
-                    float(cities[current_city]["center"][1]),
+                    float(cities[current_city]["pickup"]["location"][0]),
+                    float(cities[current_city]["pickup"]["location"][1]),
                 ],
-                "type": "temporary_center",
+                "type": cities[current_city]["pickup"]["type"],
             },
         },
         "action": "CLOSE",
+        "transition_cost": float(
+            transition_cost(
+                instance,
+                current_city,
+                simulator.start_city,
+            )
+        ),
+        "internal_cost": float(
+            city_internal_cost(
+                instance,
+                current_city,
+            )
+        ),
         "step_cost": float(-reward),
         "reward": float(reward),
     })
@@ -191,6 +218,28 @@ def main():
     print("Closed:", simulator.done)
     print("Total cost:", env.total_cost)
     print("Total reward:", sum(x["reward"] for x in trajectory))
+    internal_details = internal_cost_details(instance)
+
+    print("\nInternal cost details")
+    print("---------------------")
+    
+    for city_detail in internal_details["cities"]:
+        print(
+            f"City {city_detail['city_id']} | "
+            f"Pickup: {city_detail['pickup_location']} | "
+            f"Total internal cost: {city_detail['total_cost']:.6f}"
+        )
+    
+        for user_detail in city_detail["user_distances"]:
+            print(
+                f"  User {user_detail['user_id']} → Pickup: "
+                f"{user_detail['distance']:.6f}"
+            )
+    
+    print(
+        "Total internal cost:",
+        internal_details["total_internal_cost"],
+    )
 
     visualization.save_simulation(
         simulator,
