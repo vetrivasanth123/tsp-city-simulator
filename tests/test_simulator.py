@@ -67,8 +67,7 @@ def simulator(instance):
 def test_simulator_initial_state(simulator):
     assert simulator.tour == [simulator.start_city]
     assert simulator.current_city == simulator.start_city
-    assert simulator.total_cost == pytest.approx(0.0)
-    assert simulator.total_distance == pytest.approx(0.0)
+    assert simulator.tour == [simulator.start_city]
     assert simulator.done is False
 
 
@@ -86,7 +85,6 @@ def test_reset_uses_specified_start(instance):
     assert len(simulator.tour) == 1
     assert simulator.tour[0] == simulator.start_city
     assert state["current_city"] == simulator.start_city
-    assert simulator.total_cost == pytest.approx(0.0)
 
 def test_reset_requires_start_city(instance):
     simulator = TSPSimulator(instance, seed=42)
@@ -111,32 +109,6 @@ def test_step_adds_city(simulator):
     assert simulator.tour == [simulator.start_city, next_city]
     assert simulator.current_city == next_city
 
-    expected = simulator.instance.cost(old_city, next_city)
-    assert simulator.total_cost == pytest.approx(expected)
-    assert simulator.total_distance == pytest.approx(expected)
-
-
-def test_cost_updates_after_step(simulator):
-    next_city = simulator.available_actions()[0]
-    expected = simulator.instance.cost(simulator.current_city, next_city)
-
-    simulator.step(next_city)
-
-    assert simulator.total_cost == pytest.approx(expected)
-
-
-def test_simulator_uses_custom_cost():
-    instance = make_instance(custom_cost=True)
-    simulator = TSPSimulator(instance, seed=42)
-    simulator.reset(start_city=0)
-    current = simulator.current_city
-    next_city = simulator.available_actions()[0]
-    expected = instance.cost(current, next_city)
-
-    simulator.step(next_city)
-
-    assert simulator.total_cost == pytest.approx(expected)
-
 
 def test_multiple_steps_build_tour(simulator):
     actions = simulator.available_actions()[:3]
@@ -153,15 +125,8 @@ def test_close_tour_returns_to_start(simulator):
     while len(simulator.tour) < simulator.instance.num_cities:
         simulator.step(simulator.available_actions()[0])
 
-    cost_before = simulator.total_cost
-    final_edge = simulator.instance.cost(
-        simulator.current_city,
-        simulator.start_city,
-    )
-
     simulator.close_tour()
 
-    assert simulator.total_cost == pytest.approx(cost_before + final_edge)
     assert simulator.done is True
 
 
@@ -187,7 +152,6 @@ def test_complete_tour(simulator):
     simulator.close_tour()
 
     assert simulator.done is True
-    assert simulator.total_cost > 0.0
 
 
 def test_invalid_city_index_is_rejected(simulator):
@@ -226,8 +190,7 @@ def test_step_after_completion_is_rejected(simulator):
     with pytest.raises(RuntimeError):
         simulator.step(simulator.start_city)
 
-
-def test_state_contains_cost(simulator):
+def test_state_contains_simulator_state(simulator):
     state = simulator.state()
 
     required = {
@@ -236,8 +199,6 @@ def test_state_contains_cost(simulator):
         "start_city",
         "visited",
         "available_actions",
-        "total_cost",
-        "total_distance",
         "done",
     }
 
@@ -261,7 +222,6 @@ def test_stochastic_multi_seed_valid_tours(instance):
         assert len(set(closed_tour[:-1])) == instance.num_cities
         assert closed_tour[0] == closed_tour[-1]
         assert simulator.done
-        assert simulator.total_cost >= 0
         
 def test_transition_probabilities_are_valid(instance):
     simulator = TSPSimulator(instance, seed=42)
