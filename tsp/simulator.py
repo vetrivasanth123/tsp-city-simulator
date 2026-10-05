@@ -37,15 +37,9 @@ class TSPSimulator:
         self.start_city = start_city
         self.tour = [self.start_city]
         self.current_city = self.start_city
-        self.total_cost = 0.0
         self.done = False
 
         return self.state()
-
-    @property
-    def total_distance(self) -> float:
-        """Backward-compatible alias for total_cost."""
-        return self.total_cost
 
     def available_actions(self) -> list[int]:
         """Return unvisited cities that can be selected."""
@@ -75,13 +69,6 @@ class TSPSimulator:
             intended_action=intended_action,
         )
     
-        step_cost = self.instance.cost(
-            self.current_city,
-            actual_action,
-        )
-    
-        self.total_cost += step_cost
-    
         self.tour.append(actual_action)
         self.current_city = actual_action
     
@@ -105,12 +92,6 @@ class TSPSimulator:
             )
 
         if len(self.tour) > 1:
-            return_cost = self.instance.cost(
-                self.current_city,
-                self.start_city,
-            )
-            
-            self.total_cost += return_cost
             self.current_city = self.start_city
         
         self.done = True
@@ -126,8 +107,6 @@ class TSPSimulator:
             "current_city": self.current_city,
             "visited": list(self.tour),
             "available_actions": self.available_actions(),
-            "total_cost": self.total_cost,
-            "total_distance": self.total_distance,
             "done": self.done,
         }
 
