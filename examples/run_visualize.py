@@ -59,6 +59,7 @@ def main():
         actions,
         summary["start_city"],
         rewards,
+        trajectory,
     )
 
     display(HTML(animation.to_html5_video()))
