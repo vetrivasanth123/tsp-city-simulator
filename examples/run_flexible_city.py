@@ -189,7 +189,7 @@ def main():
     print("Start city:", simulator.start_city)
     print("Tour:", closed_tour)
     print("Closed:", simulator.done)
-    print("Total cost:", simulator.total_cost)
+    print("Total cost:", env.total_cost)
     print("Total reward:", sum(x["reward"] for x in trajectory))
 
     visualization.save_simulation(
