@@ -105,11 +105,17 @@ class TSPInstance:
                         f"City {i} has an invalid pickup location."
                     )
 
-        self.distance_matrix = euclidean_distance_matrix(coordinates)
+        if self.cities is not None:
+            pickup_coordinates = self._get_current_pickup_coordinates()
+            self.distance_matrix = euclidean_distance_matrix(pickup_coordinates)
+        else:
+            self.distance_matrix = euclidean_distance_matrix(coordinates)
 
         if cost_matrix is None:
+            self._cost_matrix_is_distance_based = True
             cost_matrix = self.distance_matrix.copy()
         else:
+            self._cost_matrix_is_distance_based = False
             cost_matrix = np.asarray(cost_matrix, dtype=float)
 
         if cost_matrix.shape != (self.num_cities, self.num_cities):
@@ -172,6 +178,29 @@ class TSPInstance:
         self._validate_city_index(city_a)
         self._validate_city_index(city_b)
         return float(self.distance_matrix[city_a, city_b])
+
+    def _get_current_pickup_coordinates(self) -> np.ndarray:
+        """Return the current pickup location of every city as an N x 2 array."""
+    
+        if self.cities is None:
+            return self.coordinates.copy()
+    
+        return np.asarray(
+            [city["pickup"]["location"] for city in self.cities],
+            dtype=float,
+        )
+
+    def rebuild_dynamic_data(self) -> None:
+        """Rebuild quantities derived from the current pickup locations."""
+    
+        pickup_coordinates = self._get_current_pickup_coordinates()
+    
+        self.distance_matrix = euclidean_distance_matrix(
+            pickup_coordinates
+        )
+    
+        if self._cost_matrix_is_distance_based:
+            self.cost_matrix = self.distance_matrix.copy()
 
     def _validate_city_index(self, city_index: int) -> None:
         if not isinstance(city_index, (int, np.integer)):
