@@ -165,6 +165,8 @@ def main():
     current_city = info["current_city"]
     current_coordinate = instance.coordinates[current_city]
     available_actions = info["available_actions"]
+    
+    simulator = env.simulator
 
     _, reward, terminated, truncated, info = env.step(env.close_action)
 
