@@ -235,6 +235,7 @@ def animate_simulation(
     actions,
     start_city,
     rewards,
+    trajectory,
     interval=180,
     frames_per_move=12,
 ):
@@ -333,12 +334,16 @@ def animate_simulation(
             if action != "CLOSE":
                 route.append(action)
 
+        step_data = trajectory[i]
+
         summary.set_text(
             f"SUMMARY\n\n"
             f"{'Returning to start' if action == 'CLOSE' else f'Current city: {b}'}\n"
             f"Action: {action}\n"
-            f"Cost: {-rewards[i]:.4f}\n"
-            f"Reward: {rewards[i]:.4f}\n"
+            f"Transition cost: {step_data['transition_cost']:.4f}\n"
+            f"Internal cost: {step_data['internal_cost']:.4f}\n"
+            f"Step cost: {step_data['step_cost']:.4f}\n"
+            f"Reward: {step_data['reward']:.4f}\n"
             f"Total cost: {-sum(rewards[:i + 1]):.4f}\n"
             f"Total reward: {sum(rewards[:i + 1]):.4f}"
         )
