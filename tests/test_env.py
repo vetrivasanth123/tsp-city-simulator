@@ -99,9 +99,12 @@ def test_state_continuity(env):
         assert info["current_city"] == state["current_city"]
         assert info["start_city"] == state["start_city"]
         assert info["available_actions"] == state["available_actions"]
-        assert np.isclose(info["total_cost"], state["total_cost"])
+
         assert obs["current_city"] == state["current_city"]
-        assert np.isclose(obs["total_cost"][0], state["total_cost"])
+
+        # Cost is owned by the environment, not the simulator.
+        assert np.isclose(info["total_cost"], env.total_cost)
+        assert np.isclose(obs["total_cost"][0], env.total_cost)
 
 
 def test_invalid_action(env):
@@ -191,7 +194,7 @@ def test_env_uses_same_simulator(env):
 
     assert info["tour"] == state["tour"]
     assert obs["current_city"] == state["current_city"]
-    assert np.isclose(obs["total_cost"][0], state["total_cost"])
+    assert np.isclose(obs["total_cost"][0], env.total_cost)
 
 
 def test_premature_close_is_rejected(env):
