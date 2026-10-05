@@ -6,6 +6,7 @@ from gymnasium import spaces
 
 from .instance import TSPInstance
 from .simulator import TSPSimulator
+from .cost import transition_cost
 
 
 class TSPEnv(gym.Env):
@@ -18,6 +19,7 @@ class TSPEnv(gym.Env):
 
         self.instance = instance
         self.simulator = TSPSimulator(instance, seed=seed)
+        self.total_cost = 0.0
 
         n = instance.num_cities
 
@@ -38,6 +40,7 @@ class TSPEnv(gym.Env):
             self.simulator._rng.seed(seed)
 
         state = self.simulator.reset(start_city=start_city)
+        self.total_cost = 0.0
         return self._observation(state), self._info(state)
 
     def step(self, action):
@@ -45,11 +48,26 @@ class TSPEnv(gym.Env):
     
         if action == self.close_action:
             if self.simulator.available_actions():
-                raise ValueError("Cannot close the tour while valid actions remain.")
+                raise ValueError(
+                    "Cannot close the tour while valid actions remain."
+                )
     
-            previous_cost = self.simulator.total_cost
+            current_city = self.simulator.current_city
+            start_city = self.simulator.start_city
+    
             state = self.simulator.close_tour()
-            reward = -(self.simulator.total_cost - previous_cost)
+    
+            if current_city != start_city:
+                step_cost = transition_cost(
+                    self.instance,
+                    current_city,
+                    start_city,
+                )
+            else:
+                step_cost = 0.0
+    
+            self.total_cost += step_cost
+            reward = -step_cost
     
             return (
                 self._observation(state),
@@ -58,24 +76,35 @@ class TSPEnv(gym.Env):
                 False,
                 self._info(state),
             )
-    
-        if action not in self.simulator.available_actions():
-            raise ValueError(f"Invalid action: {action}")
-    
-        previous_cost = self.simulator.total_cost
-        state = self.simulator.step(action)
-        reward = -(self.simulator.total_cost - previous_cost)
-        
-        info = self._info(state)
-        info["transition"] = state["transition_info"]
-        
-        return (
-            self._observation(state),
-            float(reward),
-            False,
-            False,
-            info,
-        )
+
+    if action not in self.simulator.available_actions():
+        raise ValueError(f"Invalid action: {action}")
+
+    current_city = self.simulator.current_city
+
+    state = self.simulator.step(action)
+
+    actual_city = state["current_city"]
+
+    step_cost = transition_cost(
+        self.instance,
+        current_city,
+        actual_city,
+    )
+
+    self.total_cost += step_cost
+    reward = -step_cost
+
+    info = self._info(state)
+    info["transition"] = state["transition_info"]
+
+    return (
+        self._observation(state),
+        float(reward),
+        False,
+        False,
+        info,
+    )
     def _observation(self, state):
         mask = np.zeros(self.instance.num_cities, dtype=np.int8)
         mask[state["visited"]] = 1
@@ -84,7 +113,7 @@ class TSPEnv(gym.Env):
             "current_city": state["current_city"],
             "visited_mask": mask,
             "total_cost": np.array(
-                [state["total_cost"]], dtype=np.float32
+                [self.total_cost], dtype=np.float32
             ),
         }
 
@@ -94,5 +123,5 @@ class TSPEnv(gym.Env):
             "start_city": state["start_city"],
             "current_city": state["current_city"],
             "available_actions": list(state["available_actions"]),
-            "total_cost": float(state["total_cost"]),
+            "total_cost": float(self.total_cost),
         }
