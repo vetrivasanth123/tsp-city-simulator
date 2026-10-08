@@ -232,3 +232,68 @@ def test_custom_cost_environment():
     expected_reward = -(transition_cost + internal_cost)
     
     assert reward == pytest.approx(expected_reward)
+
+def test_dynamic_pickup_changes_environment_cost_and_reward():
+    instance = make_instance()
+
+    changed_city = 0
+
+    original_pickup = np.asarray(
+        instance.cities[changed_city]["pickup"]["location"],
+        dtype=float,
+    )
+
+    new_pickup = original_pickup + np.array([0.2, 0.1])
+
+    instance.cities[changed_city]["pickup"]["location"] = (
+        new_pickup.tolist()
+    )
+
+    instance.rebuild_dynamic_data()
+
+    env = TSPEnv(instance, seed=42)
+
+    start_city = 0
+    _, info = env.reset(start_city=start_city)
+
+    tour = list(range(instance.num_cities))
+
+    total_reward = 0.0
+
+    for next_city in tour[1:]:
+        _, reward, terminated, truncated, info = env.step(next_city)
+
+        total_reward += reward
+
+        assert not terminated
+        assert not truncated
+
+    _, reward, terminated, truncated, info = env.step(
+        env.close_action
+    )
+
+    total_reward += reward
+
+    assert terminated
+    assert not truncated
+
+    tour_cost_value = tour_cost(
+        instance,
+        tour,
+    )
+
+    internal_details = internal_cost_details(instance)
+    internal_cost_value = internal_details["total_internal_cost"]
+
+    expected_total_cost = (
+        tour_cost_value
+        + internal_cost_value
+    )
+
+    assert env.total_cost == pytest.approx(
+        expected_total_cost
+    )
+
+    assert total_reward == pytest.approx(
+        -expected_total_cost
+    )
