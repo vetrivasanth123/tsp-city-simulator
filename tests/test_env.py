@@ -7,6 +7,7 @@ from tsp.city_generator import CityLocationGenerator
 from tsp.env import TSPEnv
 from tsp.instance import TSPInstance
 from tsp.simulator import TSPSimulator
+from tsp.cost import city_internal_cost
 
 
 def make_instance(n_cities=5, seed=42, custom_cost=False):
