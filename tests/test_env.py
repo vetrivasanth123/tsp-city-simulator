@@ -225,6 +225,9 @@ def test_custom_cost_environment():
 
     _, reward, _, _, _ = env.step(action)
 
-    assert reward == pytest.approx(
-        -instance.cost(current_city, action)
-    )
+    transition_cost = instance.cost(current_city, action)
+    internal_cost = city_internal_cost(instance, current_city)
+    
+    expected_reward = -(transition_cost + internal_cost)
+    
+    assert reward == pytest.approx(expected_reward)
