@@ -9,7 +9,7 @@ from dataclasses import dataclass
 class ReinforceConfig:
     """Configuration for vanilla REINFORCE training and evaluation."""
 
-    learning_rate: float = 1e-3
+    learning_rate: float = 0.000244
     gamma: float = 1.0
     num_episodes: int = 500
     eval_episodes: int = 30
