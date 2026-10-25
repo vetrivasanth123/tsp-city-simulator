@@ -79,7 +79,8 @@ def main():
 
     # Keep the same environment-construction behavior as the Random runner.
     env = TSPEnv(instance)
-
+    print_instance_details(instance, cities, PROJECT_ROOT)
+    
     # Match the Random runner's start-city selection rule.
     start_city = random.Random(args.seed).randrange(instance.num_cities)
 
@@ -276,7 +277,5 @@ def print_instance_details(instance, cities, project_root):
     print("\nCost matrix:")
     print(cost_matrix)
     
-print_instance_details(instance, cities, PROJECT_ROOT)
-
 if __name__ == "__main__":
     main()
