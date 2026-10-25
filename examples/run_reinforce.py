@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import torch
+import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -252,9 +253,8 @@ def main():
 
     print("\nSimulation saved:", PROJECT_ROOT / ".simulation.json")
 
-def print_instance_details(instance, cities, project_root):
-    import numpy as np
 
+def print_instance_details(instance, cities, project_root):
     print(f"Project root: {project_root}")
     print(f"Instance: {instance.name}")
     print(f"Grid: {instance.width} x {instance.height}")
@@ -276,6 +276,85 @@ def print_instance_details(instance, cities, project_root):
 
     print("\nCost matrix:")
     print(cost_matrix)
-    
+
+
+def print_rollout_details(instance, cities, start_city, trajectory,
+                          total_cost, total_reward):
+    print("\nInitial state")
+    print("-------------")
+    print("Start city:", start_city)
+    print("Current city:", start_city)
+    print("Visited:", [start_city])
+
+    first_actions = trajectory[0].get("available_actions", [])
+    print("Available actions:", first_actions)
+
+    print("\nAction sequence")
+    print("---------------")
+
+    for step in trajectory:
+        current = step["current_city"]
+        x, y = step["current_coordinate"]
+
+        if step.get("action") == "CLOSE":
+            print(f"Current city: {current} | Action: CLOSE")
+            continue
+
+        intended = step["intended_action"]
+        actual = step["actual_action"]
+        slipped = step["slipped"]
+        probability = step["transition_probabilities"].get(
+            str(actual), 0.0
+        )
+
+        print(
+            f"Current city: {current} ({x:.4f}, {y:.4f})"
+            f" | Available actions: {step['available_actions']}"
+            f" | Intended: {intended} | Actual: {actual}"
+            f" | Slip: {slipped} | P(actual): {probability:.4f}"
+        )
+
+    tour = [start_city]
+    for step in trajectory:
+        if step.get("action") == "CLOSE":
+            tour.append(start_city)
+        else:
+            tour.append(step["actual_action"])
+
+    print("\nFinal result")
+    print("------------")
+    print("Start city:", start_city)
+    print("Tour:", tour)
+    print("Closed:", bool(trajectory and
+                         trajectory[-1].get("action") == "CLOSE"))
+    print("Total cost:", total_cost)
+    print("Total reward:", total_reward)
+
+    print("\nInternal cost details")
+    print("---------------------")
+    total_internal_cost = 0.0
+
+    for city in cities:
+        city_id = city["city_id"]
+        pickup = city["pickup"]["location"]
+        internal_cost = city_internal_cost(instance, city_id)
+        total_internal_cost += internal_cost
+
+        print(
+            f"City {city_id} | Pickup: {pickup}"
+            f" | Total internal cost: {internal_cost:.6f}"
+        )
+
+        for user_index, node in enumerate(city["user_nodes"]):
+            distance = float(np.linalg.norm(
+                np.asarray(node, dtype=float)
+                - np.asarray(pickup, dtype=float)
+            ))
+            print(
+                f"  User {user_index} → Pickup: {distance:.6f}"
+            )
+
+    print(f"Total internal cost: {total_internal_cost}")
+
 if __name__ == "__main__":
     main()
