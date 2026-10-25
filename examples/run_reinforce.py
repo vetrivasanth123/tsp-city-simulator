@@ -251,6 +251,32 @@ def main():
 
     print("\nSimulation saved:", PROJECT_ROOT / ".simulation.json")
 
+def print_instance_details(instance, cities, project_root):
+    import numpy as np
+
+    print(f"Project root: {project_root}")
+    print(f"Instance: {instance.name}")
+    print(f"Grid: {instance.width} x {instance.height}")
+    print(f"Number of cities: {instance.num_cities}")
+    print(f"City shape: {cities[0]['shape']}")
+    print(f"User nodes per city: {len(cities[0]['user_nodes'])}")
+
+    print("\nCities:")
+    for city in cities:
+        print(city)
+
+    cost_matrix = np.array([
+        [
+            transition_cost(instance, i, j)
+            for j in range(instance.num_cities)
+        ]
+        for i in range(instance.num_cities)
+    ])
+
+    print("\nCost matrix:")
+    print(cost_matrix)
+    
+print_instance_details(instance, cities, PROJECT_ROOT)
 
 if __name__ == "__main__":
     main()
