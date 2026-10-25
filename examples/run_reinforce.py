@@ -80,6 +80,8 @@ def main():
 
     # Keep the same environment-construction behavior as the Random runner.
     env = TSPEnv(instance)
+    print("\nREINFORCE experiment")
+    print("--------------------")
     print_instance_details(instance, cities, PROJECT_ROOT)
     
     # Match the Random runner's start-city selection rule.
@@ -93,16 +95,6 @@ def main():
         log_interval=25,
         seed=args.seed,
     )
-
-    print("\nREINFORCE experiment")
-    print("--------------------")
-    print("Instance:", instance.name)
-    print("Grid:", f"{args.width} x {args.height}")
-    print("Number of cities:", instance.num_cities)
-    print("City shape:", args.city_shape)
-    print("User nodes per city:", args.user_nodes)
-    print("Seed:", args.seed)
-    print("Start city:", start_city)
 
     # 2. Train on the existing TSP environment.
     policy, history = train_reinforce(
