@@ -1,0 +1,256 @@
+
+from __future__ import annotations
+
+import argparse
+import random
+import sys
+from pathlib import Path
+
+import torch
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from tsp.city_generator import CityLocationGenerator
+from tsp.instance import TSPInstance
+from tsp.env import TSPEnv
+from tsp.cost import transition_cost, city_internal_cost
+import tsp.visualization as visualization
+
+from examples.reinforce.config import ReinforceConfig
+from examples.reinforce.train import train_reinforce
+from examples.reinforce.evaluate import evaluate_policy
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Train and evaluate REINFORCE on the TSP environment."
+    )
+
+    # Reuse the Random runner's instance-generation arguments.
+    parser.add_argument("--width", type=float, required=True)
+    parser.add_argument("--height", type=float, required=True)
+    parser.add_argument("--n-cities", type=int, required=True)
+    parser.add_argument("--seed", type=int, default=42)
+
+    parser.add_argument(
+        "--city-shape",
+        choices=["circle", "square", "rectangle"],
+        required=True,
+    )
+    parser.add_argument("--user-nodes", type=int, required=True)
+    parser.add_argument("--city-radius", type=float)
+    parser.add_argument("--city-size", type=float)
+    parser.add_argument("--city-width", type=float)
+    parser.add_argument("--city-height", type=float)
+
+    # REINFORCE-specific settings.
+    parser.add_argument("--episodes", type=int, default=500)
+    parser.add_argument("--eval-episodes", type=int, default=30)
+    parser.add_argument("--learning-rate", type=float, default=1e-3)
+    parser.add_argument("--gamma", type=float, default=1.0)
+
+    args = parser.parse_args()
+
+    # 1. Generate the instance using the existing project module.
+    generator = CityLocationGenerator(
+        width=args.width,
+        height=args.height,
+        n_cities=args.n_cities,
+        seed=args.seed,
+        user_nodes_per_city=args.user_nodes,
+        city_shape=args.city_shape,
+        city_radius=args.city_radius,
+        city_size=args.city_size,
+        city_width=args.city_width,
+        city_height=args.city_height,
+    )
+
+    coordinates = generator.generate()
+    cities = generator.get_cities()
+
+    instance = TSPInstance(
+        coordinates,
+        name="generated_tsp",
+        width=args.width,
+        height=args.height,
+        cities=cities,
+    )
+
+    # Keep the same environment-construction behavior as the Random runner.
+    env = TSPEnv(instance)
+
+    # Match the Random runner's start-city selection rule.
+    start_city = random.Random(args.seed).randrange(instance.num_cities)
+
+    config = ReinforceConfig(
+        learning_rate=args.learning_rate,
+        gamma=args.gamma,
+        num_episodes=args.episodes,
+        eval_episodes=args.eval_episodes,
+        log_interval=25,
+        seed=args.seed,
+    )
+
+    print("\nREINFORCE experiment")
+    print("--------------------")
+    print("Instance:", instance.name)
+    print("Grid:", f"{args.width} x {args.height}")
+    print("Number of cities:", instance.num_cities)
+    print("City shape:", args.city_shape)
+    print("User nodes per city:", args.user_nodes)
+    print("Seed:", args.seed)
+    print("Start city:", start_city)
+
+    # 2. Train on the existing TSP environment.
+    policy, history = train_reinforce(
+        env=env,
+        config=config,
+        start_city=start_city,
+    )
+
+    # 3. Evaluate the trained policy without updating its parameters.
+    evaluation = evaluate_policy(
+        env=env,
+        policy=policy,
+        start_city=start_city,
+        num_episodes=config.eval_episodes,
+        seed=config.seed,
+    )
+
+    print("\nEvaluation results")
+    print("------------------")
+    print("Estimated J(theta):", evaluation["estimated_J_theta"])
+    print("Mean episode return:", evaluation["mean_return"])
+    print("Mean episode cost:", evaluation["mean_cost"])
+    print("Episode-cost standard deviation:", evaluation["std_cost"])
+
+    # 4. Generate one complete policy rollout for visualization.
+    # This is one tour, not the mean evaluation result.
+    torch.manual_seed(config.seed + 1)
+    policy.eval()
+
+    observation, info = env.reset(start_city=start_city)
+    trajectory = []
+    terminated = False
+
+    while not terminated:
+        current_city = int(info["current_city"])
+        coordinate = instance.coordinates[current_city]
+        available_actions = list(info["available_actions"])
+
+        intended_action = policy.select_action(
+            observation,
+            available_actions,
+        )
+
+        next_observation, reward, terminated, truncated, next_info = (
+            env.step(intended_action)
+        )
+
+        if truncated:
+            raise RuntimeError("The visualization episode was truncated.")
+
+        if intended_action == env.close_action:
+            # Preserve the existing runner's CLOSE record structure.
+            trajectory.append({
+                "current_city": current_city,
+                "current_coordinate": [
+                    float(coordinate[0]),
+                    float(coordinate[1]),
+                ],
+                "city": {
+                    **cities[current_city],
+                    "pickup": {
+                        "location": [
+                            float(cities[current_city]["pickup"]["location"][0]),
+                            float(cities[current_city]["pickup"]["location"][1]),
+                        ],
+                        "type": cities[current_city]["pickup"]["type"],
+                    },
+                },
+                "action": "CLOSE",
+                "transition_cost": float(
+                    transition_cost(
+                        instance,
+                        current_city,
+                        env.simulator.start_city,
+                    )
+                ),
+                "internal_cost": float(
+                    city_internal_cost(instance, current_city)
+                ),
+                "step_cost": float(-reward),
+                "reward": float(reward),
+            })
+        else:
+            # Reuse the transition details supplied by the existing environment.
+            transition = next_info["transition"]
+            actual_action = int(transition["actual_action"])
+
+            trajectory.append({
+                "current_city": current_city,
+                "current_coordinate": [
+                    float(coordinate[0]),
+                    float(coordinate[1]),
+                ],
+                "city": {
+                    **cities[current_city],
+                    "pickup": {
+                        "location": [
+                            float(cities[current_city]["pickup"]["location"][0]),
+                            float(cities[current_city]["pickup"]["location"][1]),
+                        ],
+                        "type": cities[current_city]["pickup"]["type"],
+                    },
+                },
+                "available_actions": list(available_actions),
+                "intended_action": int(intended_action),
+                "transition_probabilities": {
+                    str(k): float(v)
+                    for k, v in transition[
+                        "transition_probabilities"
+                    ].items()
+                },
+                "slip_probabilities": {
+                    str(k): float(v)
+                    for k, v in transition["slip_probabilities"].items()
+                },
+                "actual_action": actual_action,
+                "slipped": bool(transition["slipped"]),
+                "transition_cost": float(
+                    transition_cost(instance, current_city, actual_action)
+                ),
+                "internal_cost": float(
+                    city_internal_cost(instance, current_city)
+                ),
+                "step_cost": float(-reward),
+                "reward": float(reward),
+                "visited_mask": next_observation["visited_mask"].tolist(),
+            })
+
+        observation, info = next_observation, next_info
+
+    simulator = env.simulator
+    closed_tour = simulator.tour + [simulator.start_city]
+
+    print("\nSaved visualization rollout")
+    print("---------------------------")
+    print("Start city:", simulator.start_city)
+    print("Tour:", closed_tour)
+    print("Total cost:", env.total_cost)
+    print("Total reward:", sum(step["reward"] for step in trajectory))
+
+    # 5. Use the existing visualization serializer and schema.
+    visualization.save_simulation(
+        simulator,
+        PROJECT_ROOT,
+        trajectory,
+        env.total_cost,
+    )
+
+    print("\nSimulation saved:", PROJECT_ROOT / ".simulation.json")
+
+
+if __name__ == "__main__":
+    main()
