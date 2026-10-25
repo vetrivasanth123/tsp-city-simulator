@@ -264,7 +264,7 @@ def main():
         current = step["current_city"]
         x, y = step["current_coordinate"]
 
-        if step["action"] == "CLOSE":
+        if step.get("action") == "CLOSE":
             print(f"Current city: {current} ({x:.4f}, {y:.4f}) | Action: CLOSE")
         else:
             print(
