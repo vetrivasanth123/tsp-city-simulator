@@ -243,6 +243,75 @@ def main():
     print("Total cost:", env.total_cost)
     print("Total reward:", sum(step["reward"] for step in trajectory))
 
+    
+    print("\nInitial state")
+    print("-------------")
+    print("Start city:", simulator.start_city)
+    print("Current city:", simulator.start_city)
+    print("Visited:", [simulator.start_city])
+    print(
+        "Available actions:",
+        list(range(instance.num_cities))[:simulator.start_city]
+        + [
+            i for i in range(instance.num_cities)
+            if i != simulator.start_city
+        ],
+    )
+
+    print("\nAction sequence")
+    print("---------------")
+    for step in trajectory:
+        current = step["current_city"]
+        x, y = step["current_coordinate"]
+
+        if step["action"] == "CLOSE":
+            print(f"Current city: {current} ({x:.4f}, {y:.4f}) | Action: CLOSE")
+        else:
+            print(
+                f"Current city: {current} ({x:.4f}, {y:.4f}) | "
+                f"Available actions: {step['available_actions']} | "
+                f"Intended: {step['intended_action']} | "
+                f"Actual: {step['actual_action']} | "
+                f"Slip: {step['slipped']} | "
+                f"P(actual): "
+                f"{step['transition_probabilities'].get(str(step['actual_action']), 0.0):.4f}"
+            )
+
+    print("\nFinal result")
+    print("------------")
+    print("Start city:", simulator.start_city)
+    print("Tour:", closed_tour)
+    print("Closed:", simulator.tour[-1] == simulator.start_city
+          if simulator.tour else False)
+    print("Total cost:", env.total_cost)
+    print("Total reward:", sum(step["reward"] for step in trajectory))
+
+    print("\nInternal cost details")
+    print("---------------------")
+    total_internal_cost = 0.0
+
+    for city in cities:
+        city_id = city["city_id"]
+        pickup = city["pickup"]["location"]
+        internal_cost = city_internal_cost(instance, city_id)
+        total_internal_cost += internal_cost
+
+        print(
+            f"City {city_id} | Pickup: {pickup} | "
+            f"Total internal cost: {internal_cost:.6f}"
+        )
+
+        # Show each user's distance to the pickup point.
+        for user_idx, node in enumerate(city["user_nodes"]):
+            distance = float(np.linalg.norm(
+                np.asarray(node, dtype=float)
+                - np.asarray(pickup, dtype=float)
+            ))
+            print(f"  User {user_idx} → Pickup: {distance:.6f}")
+
+    print(f"Total internal cost: {total_internal_cost}")
+
+
     # 5. Use the existing visualization serializer and schema.
     visualization.save_simulation(
         simulator,
@@ -252,30 +321,6 @@ def main():
     )
 
     print("\nSimulation saved:", PROJECT_ROOT / ".simulation.json")
-
-
-def print_instance_details(instance, cities, project_root):
-    print(f"Project root: {project_root}")
-    print(f"Instance: {instance.name}")
-    print(f"Grid: {instance.width} x {instance.height}")
-    print(f"Number of cities: {instance.num_cities}")
-    print(f"City shape: {cities[0]['shape']}")
-    print(f"User nodes per city: {len(cities[0]['user_nodes'])}")
-
-    print("\nCities:")
-    for city in cities:
-        print(city)
-
-    cost_matrix = np.array([
-        [
-            transition_cost(instance, i, j)
-            for j in range(instance.num_cities)
-        ]
-        for i in range(instance.num_cities)
-    ])
-
-    print("\nCost matrix:")
-    print(cost_matrix)
 
 
 def print_instance_details(instance, cities, project_root):
@@ -302,6 +347,6 @@ def print_instance_details(instance, cities, project_root):
 
     print("\nCost matrix:")
     print(cost_matrix)
-    
+
 if __name__ == "__main__":
     main()
