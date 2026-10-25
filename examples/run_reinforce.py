@@ -273,8 +273,7 @@ def main():
     print("------------")
     print("Start city:", simulator.start_city)
     print("Tour:", closed_tour)
-    print("Closed:", simulator.tour[-1] == simulator.start_city
-          if simulator.tour else False)
+    print("Closed:", closed_tour[0] == closed_tour[-1])
     print("Total cost:", env.total_cost)
     print("Total reward:", sum(step["reward"] for step in trajectory))
 
