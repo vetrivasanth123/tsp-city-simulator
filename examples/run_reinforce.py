@@ -303,8 +303,5 @@ def print_instance_details(instance, cities, project_root):
     print("\nCost matrix:")
     print(cost_matrix)
     
-print_instance_details(instance, cities, PROJECT_ROOT)
-
-
 if __name__ == "__main__":
     main()
