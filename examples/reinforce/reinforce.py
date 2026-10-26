@@ -15,7 +15,7 @@ def reinforce_update(
     policy: SoftmaxPolicy,
     trajectory: EpisodeTrajectory,
     optimizer: Optimizer,
-    gamma: float = 0.99,
+    gamma: float = 1.0,
 ) -> dict[str, float]:
     """Perform one textbook REINFORCE update over a completed episode.
 
