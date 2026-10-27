@@ -72,7 +72,7 @@ def reinforce_update(
         # PyTorch minimizes losses, so negate the policy-gradient objective.
         loss = -(gamma ** t) * G_t * log_prob
 
-                optimizer.zero_grad()
+        optimizer.zero_grad()
         loss.backward()
 
         # Measure gradients before changing parameters.
