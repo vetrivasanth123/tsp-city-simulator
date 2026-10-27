@@ -44,6 +44,12 @@ def main():
     parser.add_argument("--city-size", type=float)
     parser.add_argument("--city-width", type=float)
     parser.add_argument("--city-height", type=float)
+    parser.add_argument(
+        "--policy",
+        choices=["linear", "mlp"],
+        default="linear",
+        help="Policy architecture: linear baseline or MLP.",
+    )
 
     # REINFORCE-specific settings.
     parser.add_argument("--episodes", type=int, default=500)
@@ -101,6 +107,7 @@ def main():
         env=env,
         config=config,
         start_city=start_city,
+        policy_type=args.policy,
     )
 
     # 3. Evaluate the trained policy without updating its parameters.
