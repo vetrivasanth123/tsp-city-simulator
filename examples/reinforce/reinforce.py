@@ -74,47 +74,11 @@ def reinforce_update(
 
         optimizer.zero_grad()
         loss.backward()
-
-        # Measure gradients before changing parameters.
-        grads = [
-            p.grad.detach()
-            for p in policy.parameters()
-            if p.grad is not None
-        ]
-
-        grad_norm = math.sqrt(
-            sum(g.pow(2).sum().item() for g in grads)
-        )
-        max_grad = max(
-            (g.abs().max().item() for g in grads),
-            default=0.0,
-        )
-        max_param_before = max(
-            p.detach().abs().max().item()
-            for p in policy.parameters()
-        )
-
         optimizer.step()
 
-        max_param_after = max(
-            p.detach().abs().max().item()
-            for p in policy.parameters()
-        )
-
-        print(
-            f"t={t:02d} "
-            f"G_t={G_t:.3f} "
-            f"loss={loss.item():.3e} "
-            f"grad_norm={grad_norm:.3e} "
-            f"max_grad={max_grad:.3e} "
-            f"param_before={max_param_before:.3e} "
-            f"param_after={max_param_after:.3e}"
-        )
-
         losses.append(float(loss.detach().item()))
-        print(
-            f"reward range=({min(trajectory.rewards):.3f}, "
-            f"{max(trajectory.rewards):.3f}), "
-            f"return range=({min(returns):.3f}, "
-            f"{max(returns):.3f})"
-        )
+
+    return {
+        "mean_loss": sum(losses) / len(losses),
+        "num_updates": float(num_steps),
+    }
