@@ -8,7 +8,7 @@ import torch
 from tsp.env import TSPEnv
 
 from .config import ReinforceConfig
-from .policy import SoftmaxPolicy
+from .policy import SoftmaxPolicy, MLPSoftmaxPolicy
 from .trajectory import EpisodeTrajectory
 from .reinforce import reinforce_update
 
@@ -17,19 +17,36 @@ def train_reinforce(
     env: TSPEnv,
     config: ReinforceConfig,
     start_city: int,
-) -> tuple[SoftmaxPolicy, list[dict[str, int | float]]]:
-    """Train a REINFORCE policy using an existing TSP environment."""
+    policy_type: str = "linear",
+) -> tuple[SoftmaxPolicy | MLPSoftmaxPolicy, list[dict[str, int | float]]]:
+    """Train a selected policy architecture using REINFORCE."""
+
+    if policy_type not in {"linear", "mlp"}:
+        raise ValueError(
+            "policy_type must be either 'linear' or 'mlp'."
+        )
+
+    if not 0 <= start_city < env.instance.num_cities:
+        raise ValueError("start_city is outside the valid range.")
 
     # Seed training-side randomness before creating the policy.
     random.seed(config.seed)
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
 
-    # Reuse the number of cities from the existing environment's instance.
-    policy = SoftmaxPolicy(env.instance.num_cities)
+    num_cities = env.instance.num_cities
 
-    # Vanilla REINFORCE uses gradient ascent on expected return.
-    # SGD minimizes the equivalent negative-return loss.
+    # Select the policy architecture without changing the training loop.
+    if policy_type == "linear":
+        policy = SoftmaxPolicy(num_cities)
+    else:
+        policy = MLPSoftmaxPolicy(
+            num_cities=num_cities,
+            cost_matrix=env.instance.cost_matrix,
+            start_city=start_city,
+            hidden_sizes=(128, 64),
+        )
+
     optimizer = torch.optim.SGD(
         policy.parameters(),
         lr=config.learning_rate,
@@ -40,22 +57,18 @@ def train_reinforce(
     for episode in range(1, config.num_episodes + 1):
         observation, info = env.reset(start_city=start_city)
         trajectory = EpisodeTrajectory()
-
         terminated = False
 
         while not terminated:
-            # Legal actions are supplied by the existing environment.
             available_actions = info["available_actions"]
 
-            # Sample the intended action from the current policy.
             intended_action = policy.select_action(
                 observation,
                 available_actions,
             )
 
-            # Let the existing TSP environment handle transitions and costs.
-            next_observation, reward, terminated, truncated, info = env.step(
-                intended_action
+            next_observation, reward, terminated, truncated, info = (
+                env.step(intended_action)
             )
 
             if truncated:
@@ -64,8 +77,6 @@ def train_reinforce(
                     "REINFORCE requires a complete episode here."
                 )
 
-            # Store the pre-action state, legal actions, intended action,
-            # and the reward returned by the environment.
             trajectory.add_step(
                 observation,
                 available_actions,
@@ -75,7 +86,7 @@ def train_reinforce(
 
             observation = next_observation
 
-        # Update only after the complete episode has been collected.
+        # Keep the existing sequential REINFORCE update unchanged.
         diagnostics = reinforce_update(
             policy=policy,
             trajectory=trajectory,
@@ -83,7 +94,6 @@ def train_reinforce(
             gamma=config.gamma,
         )
 
-        # Environment rewards are negative costs, including the CLOSE step.
         total_reward = float(sum(trajectory.rewards))
         total_cost = -total_reward
 
@@ -102,6 +112,7 @@ def train_reinforce(
             or episode == config.num_episodes
         ):
             print(
+                f"Policy: {policy_type:6s} | "
                 f"Episode {episode:4d}/{config.num_episodes} | "
                 f"Cost: {total_cost:10.4f} | "
                 f"Reward: {total_reward:10.4f} | "
