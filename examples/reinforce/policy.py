@@ -88,7 +88,18 @@ class BaseSoftmaxPolicy(nn.Module):
         masked_logits = logits.masked_fill(
             ~action_mask, float("-inf")
         )
-
+        if not torch.isfinite(logits).all():
+            print("Raw logits:", logits.detach())
+            print("Available actions:", legal_actions)
+            print("Current city:", observation["current_city"])
+            print("Visited mask:", observation["visited_mask"])
+            for name, p in self.named_parameters():
+                if not torch.isfinite(p).all():
+                    print("Non-finite parameter:", name)
+            raise FloatingPointError("Non-finite policy logits")
+        
+        print("Available actions:", legal_actions)
+        print("Raw logits:", logits.detach())
         return Categorical(logits=masked_logits)
 
     def select_action(
