@@ -124,10 +124,11 @@ def train_reinforce(
 
 
 
+
 # ============================================================
 # DEBUG CODE STARTED
-# Purpose: Record actual training episodes and connect policy
-# hooks and per-decision REINFORCE update diagnostics.
+# Purpose: Record actual training transitions and connect
+# policy hooks to per-decision REINFORCE diagnostics.
 # ============================================================
 
 def debug_train_reinforce(
@@ -137,14 +138,7 @@ def debug_train_reinforce(
     policy_type: str,
     debug_report,
 ) -> tuple[SoftmaxPolicy | MLPSoftmaxPolicy, list[dict[str, int | float]]]:
-    """
-    Run the existing REINFORCE training procedure with diagnostics.
-
-    This function deliberately mirrors train_reinforce() so the
-    ordinary training entry point and its behavior remain available.
-    It does not add action samples, environment steps, or optimizer
-    updates. The runner must call this function only for debug runs.
-    """
+    """Debug-enabled training entry point; preserves the training sequence."""
     import copy
 
     from .policy import debug_attach_policy_hooks
@@ -156,7 +150,7 @@ def debug_train_reinforce(
     if not 0 <= start_city < env.instance.num_cities:
         raise ValueError("start_city is outside the valid range.")
 
-    # Preserve the original training-side seed setup and order.
+    # Preserve the original training seed setup.
     random.seed(config.seed)
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
@@ -178,7 +172,6 @@ def debug_train_reinforce(
         lr=config.learning_rate,
     )
 
-    # Record run configuration and the initial network before training.
     debug_report.record(
         "experiment",
         {
@@ -205,7 +198,7 @@ def debug_train_reinforce(
         debug_report.snapshot_network(policy),
     )
 
-    # Hooks observe existing network calls; they do not call forward().
+    # Attach observers before training; no diagnostic forward pass is run.
     debug_attach_policy_hooks(policy, debug_report)
 
     history: list[dict[str, int | float]] = []
@@ -217,17 +210,16 @@ def debug_train_reinforce(
         episode_steps = []
 
         while not terminated:
-            # Snapshot the actual state and legal actions before selection.
             observation_before = copy.deepcopy(observation)
             available_actions = list(info["available_actions"])
 
-            # Call the existing sampler exactly once.
+            # Exactly one call to the existing action sampler.
             intended_action = policy.select_action(
                 observation,
                 available_actions,
             )
 
-            # Call the environment exactly once for this action.
+            # Exactly one environment transition.
             next_observation, reward, terminated, truncated, next_info = (
                 env.step(intended_action)
             )
@@ -245,19 +237,47 @@ def debug_train_reinforce(
                 reward,
             )
 
-            # Store the real transition, not a reconstructed transition.
+            # Extract actual transition details when the environment
+            # provides them. Do not infer a slip from the reward.
+            transition = next_info.get("transition")
+
+            if isinstance(transition, dict):
+                actual_action = transition.get("actual_action")
+                slipped = transition.get("slipped")
+                transition_probabilities = transition.get(
+                    "transition_probabilities"
+                )
+                slip_probabilities = transition.get("slip_probabilities")
+            else:
+                actual_action = None
+                slipped = None
+                transition_probabilities = None
+                slip_probabilities = None
+
             episode_steps.append(
                 {
                     "timestep": len(episode_steps),
                     "observation": observation_before,
                     "available_actions": available_actions,
                     "intended_action": int(intended_action),
+                    "actual_action": (
+                        int(actual_action)
+                        if actual_action is not None
+                        else None
+                    ),
+                    "slipped": (
+                        bool(slipped)
+                        if slipped is not None
+                        else None
+                    ),
+                    "transition_probabilities": transition_probabilities,
+                    "slip_probabilities": slip_probabilities,
                     "reward": float(reward),
                     "next_observation": copy.deepcopy(next_observation),
                     "terminated": bool(terminated),
                     "truncated": bool(truncated),
                     "info_after_step": copy.deepcopy(next_info),
-                }
+                },
             )
 
             observation = next_observation
@@ -279,8 +299,6 @@ def debug_train_reinforce(
             },
         )
 
-        # This records the actual returns, losses, gradients and parameter
-        # changes around each real optimizer update.
         diagnostics = debug_reinforce_update(
             policy=policy,
             trajectory=trajectory,
@@ -299,7 +317,7 @@ def debug_train_reinforce(
         }
         history.append(episode_record)
 
-        # Keep the original training progress output unchanged.
+        # Preserve the original progress-message format.
         if (
             episode % config.log_interval == 0
             or episode == 1
@@ -314,7 +332,6 @@ def debug_train_reinforce(
                 f"Updates: {int(diagnostics['num_updates'])}"
             )
 
-    # Record the final parameters after all training episodes.
     debug_report.record(
         "final_network",
         debug_report.snapshot_network(policy),
@@ -326,4 +343,3 @@ def debug_train_reinforce(
 # ============================================================
 # DEBUG CODE ENDED
 # ============================================================
-
