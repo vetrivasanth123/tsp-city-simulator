@@ -94,7 +94,7 @@ def debug_reinforce_update(
     policy,
     trajectory,
     optimizer,
-    gamma=1.0,
+    gamma=0.99,
     debug_report=None,
     episode_index=None,
 ):
