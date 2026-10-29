@@ -76,6 +76,13 @@ def reinforce_update(
                     f"Non-finite parameter before log_prob at timestep {t}"
                 )
 
+            # TEMPORARY: detect parameters that are finite but exploding.
+            max_abs = parameter.detach().abs().max().item()
+
+            if max_abs > 1e6:
+                print(f"\n[WARNING] Very large parameter at timestep {t}")
+                print("Parameter:", name)
+                print("Maximum absolute value:", max_abs)
 
         # File 1: calculate log pi_theta(A_t | S_t).
         log_prob = policy.log_probability(
@@ -130,7 +137,18 @@ def reinforce_update(
                     )
 
         optimizer.step()
-        
+
+        # TEMPORARY: inspect parameter magnitudes after each update.
+        max_parameter = max(
+            p.detach().abs().max().item()
+            for p in policy.parameters()
+        )
+
+        print(
+            f"[UPDATE] t={t}, "
+            f"loss={loss.detach().item():.6g}, "
+            f"max_abs_parameter={max_parameter:.6g}"
+        )
         # TEMPORARY DIAGNOSTIC 5: check parameters after update.
         for name, parameter in policy.named_parameters():
             if not torch.isfinite(parameter).all():
