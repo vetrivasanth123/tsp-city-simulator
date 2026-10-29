@@ -89,7 +89,33 @@ class BaseSoftmaxPolicy(nn.Module):
             ~action_mask, float("-inf")
         )
 
+        
+        # TEMPORARY MLP DIAGNOSTIC — remove after testing.
+        if not torch.isfinite(logits).all():
+            print("\n========== INVALID RAW LOGITS ==========")
+            print("Policy class:", type(self).__name__)
+            print("Phase:", getattr(self, "_debug_phase", "normal"))
+            print("Observation:", observation)
+            print("Available actions:", legal_actions)
+            print("Raw logits:", logits.detach().cpu())
+            print("Masked logits:", masked_logits.detach().cpu())
+
+            for name, parameter in self.named_parameters():
+                if not torch.isfinite(parameter).all():
+                    print("NON-FINITE PARAMETER:", name)
+                    print("NaN:", torch.isnan(parameter).sum().item())
+                    print("+Inf:", torch.isposinf(parameter).sum().item())
+                    print("-Inf:", torch.isneginf(parameter).sum().item())
+
+            print("========================================")
+            raise FloatingPointError("Non-finite raw policy logits")
+
+        if not torch.isfinite(logits[action_mask]).all():
+            print("Non-finite logits among legal actions:", legal_actions)
+            raise FloatingPointError("Non-finite legal-action logits")
+
         return Categorical(logits=masked_logits)
+
 
     def select_action(
         self,
