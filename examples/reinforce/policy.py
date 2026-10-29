@@ -221,7 +221,6 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
         return self.network(features)
 
 
-
 # ============================================================
 # DEBUG CODE STARTED
 # Purpose: Capture actual policy-layer inputs and outputs.
@@ -230,21 +229,27 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
 def debug_attach_policy_hooks(policy, debug_report):
     """
     Attach observational hooks to the selected policy.
-    Hooks record values from existing forward passes; they do not
-    run another forward pass or sample additional actions.
+
+    Records values from existing forward passes only. This function
+    does not run additional forward passes or sample extra actions.
     """
+    # Avoid accidentally registering duplicate hooks.
+    debug_remove_policy_hooks(policy)
+
     policy._debug_report = debug_report
     policy._debug_hook_handles = []
 
     def record_layer_input(module, inputs):
-        if not inputs:
+        if not inputs or not isinstance(inputs[0], torch.Tensor):
             return
 
         debug_report.record(
             "policy_events",
             {
                 "event": "layer_input",
-                "layer": getattr(module, "_debug_layer_name", type(module).__name__),
+                "layer": getattr(
+                    module, "_debug_layer_name", type(module).__name__
+                ),
                 "input": inputs[0].detach().cpu().clone(),
             },
         )
@@ -257,10 +262,13 @@ def debug_attach_policy_hooks(policy, debug_report):
             "policy_events",
             {
                 "event": "layer_output",
-                "layer": getattr(module, "_debug_layer_name", type(module).__name__),
+                "layer": getattr(
+                    module, "_debug_layer_name", type(module).__name__
+                ),
                 "input": (
                     inputs[0].detach().cpu().clone()
-                    if inputs and isinstance(inputs[0], torch.Tensor)
+                    if inputs
+                    and isinstance(inputs[0], torch.Tensor)
                     else None
                 ),
                 "output": output.detach().cpu().clone(),
@@ -268,8 +276,9 @@ def debug_attach_policy_hooks(policy, debug_report):
         )
 
     if isinstance(policy, SoftmaxPolicy):
-        # Linear policy: input features and raw action logits.
+        # Linear policy: feature input and raw action logits.
         policy.linear._debug_layer_name = "linear"
+
         policy._debug_hook_handles.append(
             policy.linear.register_forward_pre_hook(record_layer_input)
         )
@@ -278,9 +287,12 @@ def debug_attach_policy_hooks(policy, debug_report):
         )
 
     elif isinstance(policy, MLPSoftmaxPolicy):
-        # MLP: record every Linear and ReLU layer in execution order.
+        # Capture the input to the first layer and outputs of every
+        # Linear and ReLU layer, in their actual execution order.
         for index, layer in enumerate(policy.network):
-            layer._debug_layer_name = f"network.{index}.{type(layer).__name__}"
+            layer._debug_layer_name = (
+                f"network.{index}.{type(layer).__name__}"
+            )
 
             if index == 0:
                 policy._debug_hook_handles.append(
@@ -294,13 +306,26 @@ def debug_attach_policy_hooks(policy, debug_report):
 
     else:
         raise TypeError(
-            f"Unsupported policy type for debug hooks: {type(policy).__name__}"
+            "Unsupported policy type for debug hooks: "
+            f"{type(policy).__name__}"
         )
 
     return policy
 
 
+def debug_remove_policy_hooks(policy):
+    """Remove previously attached debug hooks without changing the policy."""
+    handles = getattr(policy, "_debug_hook_handles", [])
+
+    for handle in handles:
+        handle.remove()
+
+    if hasattr(policy, "_debug_hook_handles"):
+        policy._debug_hook_handles = []
+
+
 # ============================================================
 # DEBUG CODE ENDED
 # ============================================================
+
 
