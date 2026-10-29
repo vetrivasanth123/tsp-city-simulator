@@ -55,7 +55,7 @@ def main():
     parser.add_argument("--episodes", type=int, default=500)
     parser.add_argument("--eval-episodes", type=int, default=30)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
-    parser.add_argument("--gamma", type=float, default=1.0)
+    parser.add_argument("--gamma", type=float, default=0.99)
 
     args = parser.parse_args()
 
