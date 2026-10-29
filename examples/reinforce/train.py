@@ -199,6 +199,7 @@ def debug_train_reinforce(
     )
 
     # Attach observers before training; no diagnostic forward pass is run.
+    policy._debug_phase = "training"
     debug_attach_policy_hooks(policy, debug_report)
 
     history: list[dict[str, int | float]] = []
@@ -276,7 +277,6 @@ def debug_train_reinforce(
                     "next_observation": copy.deepcopy(next_observation),
                     "terminated": bool(terminated),
                     "truncated": bool(truncated),
-                    "info_after_step": copy.deepcopy(next_info),
                 },
             )
 
