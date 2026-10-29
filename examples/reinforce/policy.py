@@ -222,99 +222,21 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
 
 
 
+
 # ============================================================
 # DEBUG CODE STARTED
-# Purpose: Capture actual layer values, action masks, masked
-# logits, probabilities, sampled actions, and log probabilities.
+# Purpose: Record compact policy decisions without extra
+# forward passes or action samples.
 # ============================================================
 
 def debug_attach_policy_hooks(policy, debug_report):
-    """
-    Observe the policy's existing computations.
-
-    No extra forward passes or action samples are performed.
-    The original action-selection and log-probability methods are
-    wrapped so their existing calls can be recorded.
-    """
+    """Attach compact, observational debug wrappers to one policy."""
     import types
 
     debug_remove_policy_hooks(policy)
 
     policy._debug_report = debug_report
-    policy._debug_hook_handles = []
 
-    def record_layer_input(module, inputs):
-        if not inputs or not isinstance(inputs[0], torch.Tensor):
-            return
-
-        debug_report.record(
-            "policy_events",
-            {
-                "event": "layer_input",
-                "layer": getattr(
-                    module, "_debug_layer_name", type(module).__name__
-                ),
-                "input": inputs[0].detach().cpu().clone(),
-            },
-        )
-
-    def record_layer_output(module, inputs, output):
-        if not isinstance(output, torch.Tensor):
-            return
-
-        debug_report.record(
-            "policy_events",
-            {
-                "event": "layer_output",
-                "layer": getattr(
-                    module, "_debug_layer_name", type(module).__name__
-                ),
-                "input": (
-                    inputs[0].detach().cpu().clone()
-                    if inputs
-                    and isinstance(inputs[0], torch.Tensor)
-                    else None
-                ),
-                "output": output.detach().cpu().clone(),
-            },
-        )
-
-    # --------------------------------------------------------
-    # 1. Register hooks for the actual Linear/ReLU computations.
-    # --------------------------------------------------------
-    if isinstance(policy, SoftmaxPolicy):
-        policy.linear._debug_layer_name = "linear"
-
-        policy._debug_hook_handles.append(
-            policy.linear.register_forward_pre_hook(record_layer_input)
-        )
-        policy._debug_hook_handles.append(
-            policy.linear.register_forward_hook(record_layer_output)
-        )
-
-    elif isinstance(policy, MLPSoftmaxPolicy):
-        for index, layer in enumerate(policy.network):
-            layer._debug_layer_name = (
-                f"network.{index}.{type(layer).__name__}"
-            )
-
-            if index == 0:
-                policy._debug_hook_handles.append(
-                    layer.register_forward_pre_hook(record_layer_input)
-                )
-
-            if isinstance(layer, (nn.Linear, nn.ReLU)):
-                policy._debug_hook_handles.append(
-                    layer.register_forward_hook(record_layer_output)
-                )
-
-    else:
-        raise TypeError(
-            "Unsupported policy type for debug hooks: "
-            f"{type(policy).__name__}"
-        )
-
-    # Keep the original bound methods for observational wrappers.
     original_methods = {
         "get_distribution": policy.get_distribution,
         "select_action": policy.select_action,
@@ -322,14 +244,17 @@ def debug_attach_policy_hooks(policy, debug_report):
     }
     policy._debug_original_methods = original_methods
 
-    # --------------------------------------------------------
-    # 2. Record the distribution from the actual forward pass.
-    # --------------------------------------------------------
+    def record(event):
+        event["policy_type"] = debug_report.policy_type
+        event["phase"] = getattr(policy, "_debug_phase", "training")
+        debug_report.record("policy_events", event)
+
     def debug_get_distribution(
         self,
         observation,
         available_actions,
     ):
+        # Preserve the original legality checks.
         legal_actions = list(available_actions)
 
         if not legal_actions:
@@ -352,7 +277,7 @@ def debug_attach_policy_hooks(policy, debug_report):
                     "CLOSE must be the only legal action when available."
                 )
 
-        # This is the original calculation: one forward pass only.
+        # Exactly one forward pass, as in the original method.
         logits = self.forward(observation)
 
         action_mask = torch.zeros(
@@ -365,87 +290,71 @@ def debug_attach_policy_hooks(policy, debug_report):
         masked_logits = logits.masked_fill(
             ~action_mask, float("-inf")
         )
-
         distribution = Categorical(logits=masked_logits)
 
-        # Reading probabilities is deterministic and consumes no RNG.
-        debug_report.record(
-            "policy_events",
+        # Record only the values needed to audit the distribution.
+        record(
             {
                 "event": "action_distribution",
-                "policy_type": debug_report.policy_type,
                 "observation": observation,
                 "available_actions": legal_actions,
                 "raw_logits": logits.detach().cpu().clone(),
                 "action_mask": action_mask.detach().cpu().clone(),
                 "masked_logits": masked_logits.detach().cpu().clone(),
                 "probabilities": distribution.probs.detach().cpu().clone(),
-            },
+            }
         )
 
         return distribution
 
-    # --------------------------------------------------------
-    # 3. Record the action sampled by the existing sampler.
-    # --------------------------------------------------------
     def debug_select_action(
         self,
         observation,
         available_actions,
     ):
-        # The original sampler calls get_distribution once and samples
-        # once. Since get_distribution is wrapped, that distribution
-        # has already been recorded.
+        # The original method still performs exactly one sample.
         action = original_methods["select_action"](
             observation,
             available_actions,
         )
 
-        debug_report.record(
-            "policy_events",
+        record(
             {
                 "event": "sampled_action",
-                "policy_type": debug_report.policy_type,
                 "observation": observation,
                 "available_actions": list(available_actions),
                 "intended_action": int(action),
-            },
+            }
         )
 
         return action
 
-    # --------------------------------------------------------
-    # 4. Record the log probability used by the real loss.
-    # --------------------------------------------------------
     def debug_log_probability(
         self,
         observation,
         available_actions,
         intended_action,
     ):
-        # The original method calls get_distribution once and computes
-        # the same Categorical log probability as before.
+        # Preserve the original log-probability computation.
         log_prob = original_methods["log_probability"](
             observation,
             available_actions,
             intended_action,
         )
 
-        debug_report.record(
-            "policy_events",
+        record(
             {
                 "event": "log_probability",
-                "policy_type": debug_report.policy_type,
                 "observation": observation,
                 "available_actions": list(available_actions),
                 "intended_action": int(intended_action),
                 "log_probability": log_prob.detach().cpu().clone(),
-            },
+            }
         )
 
         return log_prob
 
-    # Patch only this policy instance, not the policy classes globally.
+    # Patch this policy instance only.
     policy.get_distribution = types.MethodType(
         debug_get_distribution, policy
     )
@@ -460,16 +369,7 @@ def debug_attach_policy_hooks(policy, debug_report):
 
 
 def debug_remove_policy_hooks(policy):
-    """Remove debug hooks and restore ordinary method lookup."""
-    handles = getattr(policy, "_debug_hook_handles", [])
-
-    for handle in handles:
-        handle.remove()
-
-    policy._debug_hook_handles = []
-
-    # Remove instance-level wrappers. The original class methods then
-    # become active again through normal Python method lookup.
+    """Restore normal method lookup for the policy instance."""
     original_methods = getattr(policy, "_debug_original_methods", {})
 
     for name in original_methods:
@@ -481,6 +381,9 @@ def debug_remove_policy_hooks(policy):
 
     if hasattr(policy, "_debug_report"):
         delattr(policy, "_debug_report")
+
+    if hasattr(policy, "_debug_hook_handles"):
+        policy._debug_hook_handles = []
 
 
 # ============================================================
