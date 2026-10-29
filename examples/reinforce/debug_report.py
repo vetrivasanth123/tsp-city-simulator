@@ -1,4 +1,4 @@
-
+    
 # ============================================================
 # DEBUG CODE STARTED
 # File: examples/reinforce/debug_report.py
@@ -147,6 +147,7 @@ class ReinforceDebugReport:
             "visualization_rollout": {},
             "final_network": {},
             "diagnostic_forward_pass": {},
+            "policy_events": [],
         }
 
     def record(self, section: str, details: Any) -> None:
