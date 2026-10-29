@@ -1,4 +1,4 @@
-    
+
 # ============================================================
 # DEBUG CODE STARTED
 # File: examples/reinforce/debug_report.py
@@ -18,7 +18,6 @@ from torch import nn
 
 def debug_to_jsonable(value: Any) -> Any:
     """Convert tensors, NumPy values, and non-finite floats to JSON-safe data."""
-
     if isinstance(value, torch.Tensor):
         return debug_to_jsonable(value.detach().cpu().tolist())
 
@@ -52,11 +51,9 @@ def debug_to_jsonable(value: Any) -> Any:
 
 
 def debug_tensor_details(tensor: torch.Tensor) -> dict:
-    """Return the actual tensor values and useful numerical summaries."""
-
+    """Capture tensor values, shape, dtype, and finite-value statistics."""
     tensor_cpu = tensor.detach().cpu()
     values = tensor_cpu.to(torch.float64)
-
     finite_values = values[torch.isfinite(values)]
 
     if finite_values.numel():
@@ -86,8 +83,7 @@ def debug_tensor_details(tensor: torch.Tensor) -> dict:
 
 
 def debug_module_snapshot(module: nn.Module) -> dict:
-    """Capture every parameter and buffer in a network."""
-
+    """Capture all parameters, current gradients, and registered buffers."""
     parameters = {}
     buffers = {}
 
@@ -121,7 +117,7 @@ def debug_module_snapshot(module: nn.Module) -> dict:
 
 
 class ReinforceDebugReport:
-    """Temporary recorder for one linear or MLP REINFORCE run."""
+    """Temporary recorder for a single linear or MLP REINFORCE run."""
 
     def __init__(
         self,
@@ -136,25 +132,30 @@ class ReinforceDebugReport:
         self.policy_type = policy_type
         self.output_path = Path(output_path)
 
+        # Every section used by the current debug instrumentation
+        # is declared here to prevent missing-section KeyErrors.
         self.data = {
             "debug_report_version": 1,
             "policy_type": policy_type,
             "experiment": {},
             "network_initialization": {},
             "training_episodes": [],
+            "training_returns": [],
+            "training_episode_updates": [],
             "training_updates": [],
+            "policy_events": [],
             "evaluation": {},
             "visualization_rollout": {},
             "final_network": {},
             "diagnostic_forward_pass": {},
-            "policy_events": [],
         }
 
     def record(self, section: str, details: Any) -> None:
-        """Store a diagnostic event without printing it to the console."""
-
+        """Store diagnostic data without printing large values to the console."""
         if section not in self.data:
-            raise KeyError(f"Unknown debug-report section: {section}")
+            raise KeyError(
+                f"Unknown debug-report section: {section}"
+            )
 
         if isinstance(self.data[section], list):
             self.data[section].append(debug_to_jsonable(details))
@@ -162,13 +163,11 @@ class ReinforceDebugReport:
             self.data[section] = debug_to_jsonable(details)
 
     def snapshot_network(self, policy: nn.Module) -> dict:
-        """Capture the complete current policy parameter state."""
-
+        """Capture the complete current network state."""
         return debug_module_snapshot(policy)
 
     def save(self) -> Path:
-        """Write the collected report as a separate JSON file."""
-
+        """Save the separate JSON report."""
         self.output_path.parent.mkdir(
             parents=True,
             exist_ok=True,
