@@ -2,7 +2,7 @@
 # ============================================================
 # DEBUG CODE STARTED
 # File: examples/reinforce/debug_report.py
-# Purpose: Collect and save temporary REINFORCE debug details.
+# Purpose: Collect compact, auditable REINFORCE debug details.
 # ============================================================
 
 from __future__ import annotations
@@ -36,13 +36,17 @@ def debug_to_jsonable(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [debug_to_jsonable(item) for item in value]
 
-    if isinstance(value, float):
+    if isinstance(value, (float, np.floating)):
+        value = float(value)
+
         if np.isnan(value):
             return "NaN"
         if np.isposinf(value):
             return "Infinity"
         if np.isneginf(value):
             return "-Infinity"
+
+        return value
 
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
@@ -51,39 +55,29 @@ def debug_to_jsonable(value: Any) -> Any:
 
 
 def debug_tensor_details(tensor: torch.Tensor) -> dict:
-    """Capture tensor values, shape, dtype, and finite-value statistics."""
-    tensor_cpu = tensor.detach().cpu()
-    values = tensor_cpu.to(torch.float64)
-    finite_values = values[torch.isfinite(values)]
+    """
+    Capture actual tensor values and essential metadata.
 
-    if finite_values.numel():
-        statistics = {
-            "min": float(finite_values.min().item()),
-            "max": float(finite_values.max().item()),
-            "mean": float(finite_values.mean().item()),
-            "std": float(finite_values.std(unbiased=False).item()),
-            "finite_value_count": int(finite_values.numel()),
-        }
-    else:
-        statistics = {
-            "min": None,
-            "max": None,
-            "mean": None,
-            "std": None,
-            "finite_value_count": 0,
-        }
+    Deliberately omits min/max/mean/std statistics to reduce
+    JSON size. The original tensor values are preserved.
+    """
+    tensor_cpu = tensor.detach().cpu()
 
     return {
         "shape": list(tensor_cpu.shape),
         "dtype": str(tensor_cpu.dtype),
         "numel": int(tensor_cpu.numel()),
         "values": debug_to_jsonable(tensor_cpu),
-        "statistics": statistics,
     }
 
 
 def debug_module_snapshot(module: nn.Module) -> dict:
-    """Capture all parameters, current gradients, and registered buffers."""
+    """
+    Capture parameters, their current gradients, and buffers.
+
+    This is intended for initial/final network snapshots.
+    Per-update recording is handled by reinforce.py.
+    """
     parameters = {}
     buffers = {}
 
@@ -117,7 +111,7 @@ def debug_module_snapshot(module: nn.Module) -> dict:
 
 
 class ReinforceDebugReport:
-    """Temporary recorder for a single linear or MLP REINFORCE run."""
+    """Temporary recorder for one linear or MLP REINFORCE run."""
 
     def __init__(
         self,
@@ -132,10 +126,8 @@ class ReinforceDebugReport:
         self.policy_type = policy_type
         self.output_path = Path(output_path)
 
-        # Every section used by the current debug instrumentation
-        # is declared here to prevent missing-section KeyErrors.
         self.data = {
-            "debug_report_version": 1,
+            "debug_report_version": 2,
             "policy_type": policy_type,
             "experiment": {},
             "network_initialization": {},
@@ -151,7 +143,7 @@ class ReinforceDebugReport:
         }
 
     def record(self, section: str, details: Any) -> None:
-        """Store diagnostic data without printing large values to the console."""
+        """Store diagnostics without printing large values to the console."""
         if section not in self.data:
             raise KeyError(
                 f"Unknown debug-report section: {section}"
