@@ -346,5 +346,147 @@ def print_instance_details(instance, cities, project_root):
     print("\nCost matrix:")
     print(cost_matrix)
 
-if __name__ == "__main__":
+
+
+
+# ============================================================
+# DEBUG CODE STARTED
+# Purpose: Connect the temporary debug recorder to the existing
+# runner and save a separate policy-specific JSON report.
+# ============================================================
+
+def debug_main():
+    """
+    Execute the existing runner with debug instrumentation enabled.
+
+    The existing main() remains unchanged. Its global function
+    references are temporarily wrapped so training, evaluation,
+    and visualization details can be recorded without changing
+    the command-line arguments or simulation JSON schema.
+    """
+    from examples.reinforce.debug_report import ReinforceDebugReport
+    from examples.reinforce.train import debug_train_reinforce
+
+    # Keep references to the original functions.
+    original_train = train_reinforce
+    original_evaluate = evaluate_policy
+    original_save_simulation = visualization.save_simulation
+
+    report_holder = {"report": None}
+
+    def debug_train_wrapper(
+        env,
+        config,
+        start_city,
+        policy_type="linear",
+    ):
+        # A distinct file for each policy; never overwrite the other
+        # policy's report.
+        report_path = PROJECT_ROOT / f"debug_reinforce_{policy_type}.json"
+
+        report = ReinforceDebugReport(
+            policy_type=policy_type,
+            output_path=report_path,
+        )
+        report_holder["report"] = report
+
+        return debug_train_reinforce(
+            env=env,
+            config=config,
+            start_city=start_city,
+            policy_type=policy_type,
+            debug_report=report,
+        )
+
+    def debug_evaluate_wrapper(
+        env,
+        policy,
+        start_city,
+        num_episodes=30,
+        seed=42,
+    ):
+        # Run the existing evaluator exactly once with its original
+        # arguments, preserving its normal evaluation behavior.
+        result = original_evaluate(
+            env=env,
+            policy=policy,
+            start_city=start_city,
+            num_episodes=num_episodes,
+            seed=seed,
+        )
+
+        report = report_holder["report"]
+        if report is not None:
+            report.record(
+                "evaluation",
+                {
+                    "num_episodes": num_episodes,
+                    "seed": seed,
+                    "results": result,
+                },
+            )
+
+        return result
+
+    def debug_save_simulation_wrapper(
+        simulator,
+        project_root,
+        trajectory,
+        total_cost,
+    ):
+        # Record the same visualization trajectory already generated
+        # by main(); do not generate another rollout.
+        report = report_holder["report"]
+
+        if report is not None:
+            report.record(
+                "visualization_rollout",
+                {
+                    "trajectory": trajectory,
+                    "total_cost": float(total_cost),
+                    "start_city": getattr(simulator, "start_city", None),
+                    "tour": getattr(simulator, "tour", None),
+                },
+            )
+
+        # Call the original serializer once with the original arguments.
+        return original_save_simulation(
+            simulator,
+            project_root,
+            trajectory,
+            total_cost,
+        )
+
+    try:
+        # Temporarily connect debug wrappers to the unchanged main().
+        globals()["train_reinforce"] = debug_train_wrapper
+        globals()["evaluate_policy"] = debug_evaluate_wrapper
+        visualization.save_simulation = debug_save_simulation_wrapper
+
+        # Existing CLI parsing, printed output, and visualization flow.
+        main()
+
+        report = report_holder["report"]
+        if report is not None:
+            # Save only after main() has completed its existing
+            # simulation save and printed its confirmation.
+            report_path = report.save()
+            print("Debug report saved:", report_path)
+
+    finally:
+        # Restore the original function references even if execution fails.
+        globals()["train_reinforce"] = original_train
+        globals()["evaluate_policy"] = original_evaluate
+        visualization.save_simulation = original_save_simulation
+
+
+# ============================================================
+# DEBUG CODE ENDEDif __name__ == "__main__":
     main()
+# ============================================================
+
+
+if __name__ == "__main__":
+    debug_main()
+
+
