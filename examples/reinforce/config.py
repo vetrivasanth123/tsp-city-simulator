@@ -10,7 +10,7 @@ class ReinforceConfig:
     """Configuration for vanilla REINFORCE training and evaluation."""
 
     learning_rate: float = 1e-3
-    gamma: float = 1.0
+    gamma: float = 0.99
     num_episodes: int = 500
     eval_episodes: int = 30
     log_interval: int = 25
