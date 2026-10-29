@@ -221,19 +221,23 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
         return self.network(features)
 
 
+
 # ============================================================
 # DEBUG CODE STARTED
-# Purpose: Capture actual policy-layer inputs and outputs.
+# Purpose: Capture actual layer values, action masks, masked
+# logits, probabilities, sampled actions, and log probabilities.
 # ============================================================
 
 def debug_attach_policy_hooks(policy, debug_report):
     """
-    Attach observational hooks to the selected policy.
+    Observe the policy's existing computations.
 
-    Records values from existing forward passes only. This function
-    does not run additional forward passes or sample extra actions.
+    No extra forward passes or action samples are performed.
+    The original action-selection and log-probability methods are
+    wrapped so their existing calls can be recorded.
     """
-    # Avoid accidentally registering duplicate hooks.
+    import types
+
     debug_remove_policy_hooks(policy)
 
     policy._debug_report = debug_report
@@ -275,8 +279,10 @@ def debug_attach_policy_hooks(policy, debug_report):
             },
         )
 
+    # --------------------------------------------------------
+    # 1. Register hooks for the actual Linear/ReLU computations.
+    # --------------------------------------------------------
     if isinstance(policy, SoftmaxPolicy):
-        # Linear policy: feature input and raw action logits.
         policy.linear._debug_layer_name = "linear"
 
         policy._debug_hook_handles.append(
@@ -287,8 +293,6 @@ def debug_attach_policy_hooks(policy, debug_report):
         )
 
     elif isinstance(policy, MLPSoftmaxPolicy):
-        # Capture the input to the first layer and outputs of every
-        # Linear and ReLU layer, in their actual execution order.
         for index, layer in enumerate(policy.network):
             layer._debug_layer_name = (
                 f"network.{index}.{type(layer).__name__}"
@@ -310,22 +314,175 @@ def debug_attach_policy_hooks(policy, debug_report):
             f"{type(policy).__name__}"
         )
 
+    # Keep the original bound methods for observational wrappers.
+    original_methods = {
+        "get_distribution": policy.get_distribution,
+        "select_action": policy.select_action,
+        "log_probability": policy.log_probability,
+    }
+    policy._debug_original_methods = original_methods
+
+    # --------------------------------------------------------
+    # 2. Record the distribution from the actual forward pass.
+    # --------------------------------------------------------
+    def debug_get_distribution(
+        self,
+        observation,
+        available_actions,
+    ):
+        legal_actions = list(available_actions)
+
+        if not legal_actions:
+            legal_actions = [self.close_action]
+
+        if len(set(legal_actions)) != len(legal_actions):
+            raise ValueError("available_actions contains duplicates.")
+
+        if any(
+            not isinstance(action, (int, np.integer))
+            or action < 0
+            or action >= self.num_actions
+            for action in legal_actions
+        ):
+            raise ValueError("available_actions contains an invalid action.")
+
+        if self.close_action in legal_actions:
+            if legal_actions != [self.close_action]:
+                raise ValueError(
+                    "CLOSE must be the only legal action when available."
+                )
+
+        # This is the original calculation: one forward pass only.
+        logits = self.forward(observation)
+
+        action_mask = torch.zeros(
+            self.num_actions,
+            dtype=torch.bool,
+            device=logits.device,
+        )
+        action_mask[legal_actions] = True
+
+        masked_logits = logits.masked_fill(
+            ~action_mask, float("-inf")
+        )
+
+        distribution = Categorical(logits=masked_logits)
+
+        # Reading probabilities is deterministic and consumes no RNG.
+        debug_report.record(
+            "policy_events",
+            {
+                "event": "action_distribution",
+                "policy_type": debug_report.policy_type,
+                "observation": observation,
+                "available_actions": legal_actions,
+                "raw_logits": logits.detach().cpu().clone(),
+                "action_mask": action_mask.detach().cpu().clone(),
+                "masked_logits": masked_logits.detach().cpu().clone(),
+                "probabilities": distribution.probs.detach().cpu().clone(),
+            },
+        )
+
+        return distribution
+
+    # --------------------------------------------------------
+    # 3. Record the action sampled by the existing sampler.
+    # --------------------------------------------------------
+    def debug_select_action(
+        self,
+        observation,
+        available_actions,
+    ):
+        # The original sampler calls get_distribution once and samples
+        # once. Since get_distribution is wrapped, that distribution
+        # has already been recorded.
+        action = original_methods["select_action"](
+            observation,
+            available_actions,
+        )
+
+        debug_report.record(
+            "policy_events",
+            {
+                "event": "sampled_action",
+                "policy_type": debug_report.policy_type,
+                "observation": observation,
+                "available_actions": list(available_actions),
+                "intended_action": int(action),
+            },
+        )
+
+        return action
+
+    # --------------------------------------------------------
+    # 4. Record the log probability used by the real loss.
+    # --------------------------------------------------------
+    def debug_log_probability(
+        self,
+        observation,
+        available_actions,
+        intended_action,
+    ):
+        # The original method calls get_distribution once and computes
+        # the same Categorical log probability as before.
+        log_prob = original_methods["log_probability"](
+            observation,
+            available_actions,
+            intended_action,
+        )
+
+        debug_report.record(
+            "policy_events",
+            {
+                "event": "log_probability",
+                "policy_type": debug_report.policy_type,
+                "observation": observation,
+                "available_actions": list(available_actions),
+                "intended_action": int(intended_action),
+                "log_probability": log_prob.detach().cpu().clone(),
+            },
+        )
+
+        return log_prob
+
+    # Patch only this policy instance, not the policy classes globally.
+    policy.get_distribution = types.MethodType(
+        debug_get_distribution, policy
+    )
+    policy.select_action = types.MethodType(
+        debug_select_action, policy
+    )
+    policy.log_probability = types.MethodType(
+        debug_log_probability, policy
+    )
+
     return policy
 
 
 def debug_remove_policy_hooks(policy):
-    """Remove previously attached debug hooks without changing the policy."""
+    """Remove debug hooks and restore ordinary method lookup."""
     handles = getattr(policy, "_debug_hook_handles", [])
 
     for handle in handles:
         handle.remove()
 
-    if hasattr(policy, "_debug_hook_handles"):
-        policy._debug_hook_handles = []
+    policy._debug_hook_handles = []
+
+    # Remove instance-level wrappers. The original class methods then
+    # become active again through normal Python method lookup.
+    original_methods = getattr(policy, "_debug_original_methods", {})
+
+    for name in original_methods:
+        if name in policy.__dict__:
+            delattr(policy, name)
+
+    if hasattr(policy, "_debug_original_methods"):
+        delattr(policy, "_debug_original_methods")
+
+    if hasattr(policy, "_debug_report"):
+        delattr(policy, "_debug_report")
 
 
 # ============================================================
 # DEBUG CODE ENDED
 # ============================================================
-
-
