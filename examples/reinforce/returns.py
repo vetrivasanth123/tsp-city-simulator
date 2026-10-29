@@ -6,7 +6,7 @@ import math
 
 def calculate_returns(
     rewards: list[float],
-    gamma: float = 0.99,
+    gamma: float = 1.0,
 ) -> list[float]:
     """Calculate discounted returns for one complete episode.
 
