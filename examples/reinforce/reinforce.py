@@ -84,10 +84,10 @@ def reinforce_update(
     }
 
 
+
 # ============================================================
 # DEBUG CODE STARTED
-# Purpose: Capture actual REINFORCE returns, losses, gradients,
-# and parameter changes for every real optimizer update.
+# Purpose: Capture compact REINFORCE update diagnostics.
 # ============================================================
 
 def debug_reinforce_update(
@@ -101,15 +101,13 @@ def debug_reinforce_update(
     """
     Debug-enabled equivalent of reinforce_update().
 
-    IMPORTANT:
-    - Uses the same chronological, per-decision update order.
-    - Uses the same loss equation and optimizer.
-    - Does not add optimizer steps or action samples.
-    - Records tensors from the actual training computation.
-    - Returns the same dictionary structure as reinforce_update().
-    """
-    import copy
+    Preserves the original chronological per-decision update order,
+    loss equation, optimizer, and number of optimizer steps.
 
+    Stores actual returns, log probabilities, losses, gradients,
+    parameter deltas, and update norms without repeated parameter
+    snapshots at every timestep.
+    """
     gamma = float(gamma)
 
     if not math.isfinite(gamma) or not 0.0 <= gamma <= 1.0:
@@ -131,6 +129,10 @@ def debug_reinforce_update(
     returns = calculate_returns(trajectory.rewards, gamma)
     losses = []
 
+    def record(section, details):
+        if debug_report is not None:
+            debug_report.record(section, details)
+
     def snapshot_parameters():
         return {
             name: parameter.detach().cpu().clone()
@@ -140,27 +142,19 @@ def debug_reinforce_update(
     def tensor_norm(tensor):
         return float(torch.linalg.vector_norm(tensor.detach()).item())
 
-    def scalar(value):
-        return float(value.detach().item())
-
-    def record(section, details):
-        if debug_report is not None:
-            debug_report.record(section, details)
-
-    # Record the actual rewards and returns used for this episode.
+    # Record the actual rewards and returns used by this episode.
     record(
         "training_returns",
         {
             "episode_index": episode_index,
             "gamma": gamma,
-            "rewards": list(trajectory.rewards),
+            "rewards": [float(r) for r in trajectory.rewards],
             "returns": [float(value) for value in returns],
             "num_steps": num_steps,
         },
     )
 
-    # Textbook REINFORCE: one optimizer update per decision,
-    # processed chronologically, exactly as in the original function.
+    # One optimizer update per decision, in chronological order.
     for t in range(num_steps):
         observation = trajectory.observations[t]
         available_actions = trajectory.available_actions[t]
@@ -168,22 +162,22 @@ def debug_reinforce_update(
         G_t = returns[t]
         discount_factor = gamma ** t
 
-        # Capture parameters before calculating this update.
+        # Capture parameters immediately before the real update.
         parameters_before = snapshot_parameters()
 
-        # Use the original policy method to obtain the actual log probability.
         log_prob = policy.log_probability(
             observation,
             available_actions,
             intended_action,
         )
 
-        loss = -discount_factor * G_t * log_prob
+        # Keep the original loss expression and operation order.
+        loss = -(gamma ** t) * G_t * log_prob
 
         optimizer.zero_grad()
         loss.backward()
 
-        # Capture gradients produced by this actual backward pass.
+        # Record actual gradients from this backward pass.
         gradients = {}
         gradient_norm_squared = 0.0
 
@@ -195,34 +189,27 @@ def debug_reinforce_update(
             gradient = parameter.grad.detach().cpu().clone()
             gradients[name] = gradient
 
-            norm = tensor_norm(parameter.grad)
-            gradient_norm_squared += norm * norm
+            gradient_norm = tensor_norm(parameter.grad)
+            gradient_norm_squared += gradient_norm ** 2
 
         total_gradient_norm = math.sqrt(gradient_norm_squared)
 
-        # Perform the original optimizer update exactly once.
+        # Exactly one real optimizer step, as in reinforce_update().
         optimizer.step()
 
-        # Capture the actual post-update parameters.
-        parameters_after = snapshot_parameters()
-
-        parameter_changes = {}
+        # Measure the actual change caused by this optimizer step.
+        parameter_deltas = {}
         update_norm_squared = 0.0
 
-        for name in parameters_before:
+        for name, parameter in policy.named_parameters():
             before = parameters_before[name]
-            after = parameters_after[name]
+            after = parameter.detach().cpu()
             delta = after - before
 
-            parameter_changes[name] = {
-                "before": before,
-                "after": after,
-                "delta": delta,
-                "delta_norm": tensor_norm(delta),
-            }
+            parameter_deltas[name] = delta
 
             delta_norm = tensor_norm(delta)
-            update_norm_squared += delta_norm * delta_norm
+            update_norm_squared += delta_norm ** 2
 
         total_update_norm = math.sqrt(update_norm_squared)
 
@@ -231,18 +218,18 @@ def debug_reinforce_update(
             {
                 "episode_index": episode_index,
                 "timestep": t,
-                "observation": copy.deepcopy(observation),
+                "observation": observation,
                 "available_actions": list(available_actions),
                 "intended_action": int(intended_action),
                 "reward": float(trajectory.rewards[t]),
                 "return_G_t": float(G_t),
                 "gamma": gamma,
                 "discount_factor_gamma_power_t": float(discount_factor),
-                "log_probability": scalar(log_prob),
-                "loss": scalar(loss),
+                "log_probability": float(log_prob.detach().item()),
+                "loss": float(loss.detach().item()),
                 "gradients": gradients,
                 "gradient_global_norm": total_gradient_norm,
-                "parameters_and_changes": parameter_changes,
+                "parameter_deltas": parameter_deltas,
                 "update_global_norm": total_update_norm,
             },
         )
