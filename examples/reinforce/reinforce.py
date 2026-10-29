@@ -62,6 +62,21 @@ def reinforce_update(
         intended_action = trajectory.intended_actions[t]
         G_t = returns[t]
 
+        
+        # TEMPORARY DIAGNOSTIC 1: check parameters before log_prob.
+        for name, parameter in policy.named_parameters():
+            if not torch.isfinite(parameter).all():
+                print(f"\n[FAIL] Non-finite parameter BEFORE log_prob")
+                print("Timestep:", t)
+                print("Parameter:", name)
+                print("NaN:", torch.isnan(parameter).sum().item())
+                print("+Inf:", torch.isposinf(parameter).sum().item())
+                print("-Inf:", torch.isneginf(parameter).sum().item())
+                raise FloatingPointError(
+                    f"Non-finite parameter before log_prob at timestep {t}"
+                )
+
+
         # File 1: calculate log pi_theta(A_t | S_t).
         log_prob = policy.log_probability(
             observation,
@@ -69,12 +84,68 @@ def reinforce_update(
             intended_action,
         )
 
+        
+        # TEMPORARY DIAGNOSTIC 2: check log probability.
+        if not torch.isfinite(log_prob).all():
+            print(f"\n[FAIL] Invalid log probability at timestep {t}")
+            print("Available actions:", available_actions)
+            print("Intended action:", intended_action)
+            print("Return G_t:", float(G_t))
+            print("Log probability:", log_prob.detach().cpu())
+            raise FloatingPointError(
+                f"Invalid log probability at timestep {t}"
+            )
+
         # PyTorch minimizes losses, so negate the policy-gradient objective.
         loss = -(gamma ** t) * G_t * log_prob
+        
+        # TEMPORARY DIAGNOSTIC 3: check loss.
+        if not torch.isfinite(loss).all():
+            print(f"\n[FAIL] Invalid loss at timestep {t}")
+            print("Return G_t:", float(G_t))
+            print("Log probability:", float(log_prob.detach()))
+            print("Loss:", float(loss.detach()))
+            raise FloatingPointError(
+                f"Invalid loss at timestep {t}"
+            )
+
 
         optimizer.zero_grad()
         loss.backward()
+        
+        # TEMPORARY DIAGNOSTIC 4: check gradients before update.
+        for name, parameter in policy.named_parameters():
+            if parameter.grad is not None:
+                grad = parameter.grad
+                if not torch.isfinite(grad).all():
+                    print(f"\n[FAIL] Non-finite gradient at timestep {t}")
+                    print("Parameter:", name)
+                    print("NaN:", torch.isnan(grad).sum().item())
+                    print("+Inf:", torch.isposinf(grad).sum().item())
+                    print("-Inf:", torch.isneginf(grad).sum().item())
+                    print("Return G_t:", float(G_t))
+                    print("Loss:", float(loss.detach()))
+                    raise FloatingPointError(
+                        f"Non-finite gradient at timestep {t}: {name}"
+                    )
+
         optimizer.step()
+        
+        # TEMPORARY DIAGNOSTIC 5: check parameters after update.
+        for name, parameter in policy.named_parameters():
+            if not torch.isfinite(parameter).all():
+                print(f"\n[FAIL] Non-finite parameter AFTER optimizer.step()")
+                print("Timestep:", t)
+                print("Parameter:", name)
+                print("NaN:", torch.isnan(parameter).sum().item())
+                print("+Inf:", torch.isposinf(parameter).sum().item())
+                print("-Inf:", torch.isneginf(parameter).sum().item())
+                print("Return G_t:", float(G_t))
+                print("Loss:", float(loss.detach()))
+                raise FloatingPointError(
+                    f"Non-finite parameter after update at timestep {t}"
+                )
+
 
         losses.append(float(loss.detach().item()))
 
