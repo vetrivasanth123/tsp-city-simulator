@@ -175,6 +175,9 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
         num_cities: int,
         cost_matrix,
         start_city: int,
+        grid_width: float,
+        grid_height: float,
+        normalize_cost_matrix: bool = False,
         hidden_sizes: tuple[int, int] = (128, 64),
     ):
         super().__init__(num_cities)
@@ -199,6 +202,31 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
 
         self.start_city = start_city
         self.num_features = num_cities**2 + 3 * num_cities
+
+        # ============================================================
+        # TEMPORARY DIAGNOSTIC: GRID-DIAGONAL COST NORMALIZATION
+        # Purpose: Scale cost-matrix inputs relative to grid dimensions.
+        # ============================================================
+        
+        if grid_width <= 0 or grid_height <= 0:
+            raise ValueError("Grid dimensions must be positive.")
+        
+        self.grid_diagonal = float(
+            np.sqrt(grid_width**2 + grid_height**2)
+        )
+        
+        self.normalize_cost_matrix = normalize_cost_matrix
+        
+        print("\n========== COST MATRIX SCALE DIAGNOSTIC ==========")
+        print("Grid width:", grid_width)
+        print("Grid height:", grid_height)
+        print("Grid diagonal:", self.grid_diagonal)
+        print("Normalize cost matrix:", self.normalize_cost_matrix)
+        print("==================================================")
+        
+        # ============================================================
+        # END TEMPORARY DIAGNOSTIC
+        # ============================================================
 
         # Store the existing instance matrix once; do not recalculate it.
         self.register_buffer(
@@ -228,14 +256,29 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
 
         state_features = super().encode_observation(observation)
 
+        # ============================================================
+        # TEMPORARY DIAGNOSTIC: GRID-DIAGONAL COST NORMALIZATION
+        # ============================================================
+        
+        if self.normalize_cost_matrix:
+            cost_matrix_input = (
+                self.cost_matrix_flat / self.grid_diagonal
+            )
+        else:
+            cost_matrix_input = self.cost_matrix_flat
+        
         features = torch.cat(
             [
                 state_features[:self.num_cities],  # Current city
                 self.start_city_one_hot,            # Starting city
                 state_features[self.num_cities:],   # Visited mask
-                self.cost_matrix_flat,               # N x N cost matrix
+                cost_matrix_input,                  # Cost matrix
             ]
         )
+        
+        # ============================================================
+        # END TEMPORARY DIAGNOSTIC
+        # ============================================================
 
         if features.numel() != self.num_features:
             raise RuntimeError("Unexpected MLP input feature dimension.")
