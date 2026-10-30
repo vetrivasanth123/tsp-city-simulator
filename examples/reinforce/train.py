@@ -62,7 +62,7 @@ def train_reinforce(
                     hidden_sizes=(128, 64),
                     grid_width=grid_width,
                     grid_height=grid_height,
-                    normalize_cost_matrix=False,  # Run A: original input
+                    normalize_cost_matrix=True,  # Run B: normalized input
                 )
         
                 # ============================================================
