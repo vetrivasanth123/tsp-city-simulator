@@ -76,7 +76,18 @@ def train_reinforce(
 
     history: list[dict[str, int | float]] = []
 
+    print("\n========== TRAINING CONFIG DEBUG ==========")
+    print(f"num_episodes : {config.num_episodes}")
+    print(f"log_interval : {config.log_interval}")
+    print(f"learning_rate: {config.learning_rate}")
+    print(f"seed         : {config.seed}")
+    print("===========================================\n", flush=True)
+
     for episode in range(1, config.num_episodes + 1):
+        print(
+            f"\n[EPISODE START] Starting episode {episode}/{config.num_episodes}",
+            flush=True
+        )
         observation, info = env.reset(start_city=start_city)
         trajectory = EpisodeTrajectory()
         terminated = False
