@@ -13,7 +13,7 @@ class ReinforceConfig:
     gamma: float = 1.0
     num_episodes: int = 500
     eval_episodes: int = 30
-    log_interval: int = 25
+    log_interval: int = 5
     seed: int = 42
 
     def __post_init__(self) -> None:
