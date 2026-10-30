@@ -75,6 +75,7 @@ def train_reinforce(
     )
 
     history: list[dict[str, int | float]] = []
+    progress_logs = []
 
     print("\n========== TRAINING CONFIG DEBUG ==========")
     print(f"num_episodes : {config.num_episodes}")
@@ -183,15 +184,15 @@ def train_reinforce(
             or episode == config.num_episodes
         )
         
-        print(
-            f"[LOG DEBUG] Episode={episode}/{config.num_episodes} | "
-            f"log_interval={config.log_interval} | "
-            f"remainder={episode % config.log_interval} | "
-            f"should_log={should_log}",
-            flush=True
-        )
-        
         if should_log:
+            progress_logs.append(
+                f"Policy: {policy_type:6s} | "
+                f"Episode {episode:4d}/{config.num_episodes} | "
+                f"Cost: {total_cost:10.4f} | "
+                f"Reward: {total_reward:10.4f} | "
+                f"Mean loss: {diagnostics['mean_loss']:10.4f} | "
+                f"Updates: {int(diagnostics['num_updates'])}"
+            )
             print(
                 f"Policy: {policy_type:6s} | "
                 f"Episode {episode:4d}/{config.num_episodes} | "
@@ -200,6 +201,12 @@ def train_reinforce(
                 f"Mean loss: {diagnostics['mean_loss']:10.4f} | "
                 f"Updates: {int(diagnostics['num_updates'])}"
             )
+    print("\n========== TRAINING PROGRESS SUMMARY ==========")
+
+    for log in progress_logs:
+        print(log)
+    
+    print("================================================\n", flush=True)        
 
     return policy, history
 
