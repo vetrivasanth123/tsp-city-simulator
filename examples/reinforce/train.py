@@ -61,6 +61,44 @@ def train_reinforce(
 
         while not terminated:
             available_actions = info["available_actions"]
+            # TEMPORARY DIAGNOSTIC — inspect MLP input and activations once.
+            if policy_type == "mlp" and episode == 1 and len(trajectory.rewards) == 0:
+                with torch.no_grad():
+                    x = policy.encode_observation(observation)
+            
+                    z1 = policy.network[0](x)
+                    a1 = policy.network[1](z1)
+            
+                    z2 = policy.network[2](a1)
+                    a2 = policy.network[3](z2)
+            
+                    logits = policy.network[4](a2)
+            
+                    def show_stats(name, tensor):
+                        print(
+                            f"{name:20s} | "
+                            f"min={tensor.min().item():12.4f} | "
+                            f"max={tensor.max().item():12.4f} | "
+                            f"mean={tensor.mean().item():12.4f} | "
+                            f"std={tensor.std().item():12.4f} | "
+                            f"L2={torch.linalg.vector_norm(tensor).item():12.4f}"
+                        )
+            
+                    print("\n========== MLP SCALE DIAGNOSTICS ==========")
+            
+                    show_stats("Input features", x)
+                    show_stats("Current city", x[:num_cities])
+                    show_stats("Starting city", x[num_cities:2*num_cities])
+                    show_stats("Visited mask", x[2*num_cities:3*num_cities])
+                    show_stats("Cost matrix", x[3*num_cities:])
+            
+                    show_stats("Layer 1 pre-ReLU", z1)
+                    show_stats("Layer 1 activation", a1)
+                    show_stats("Layer 2 pre-ReLU", z2)
+                    show_stats("Layer 2 activation", a2)
+                    show_stats("Output logits", logits)
+            
+                    print("===========================================\n")
 
             intended_action = policy.select_action(
                 observation,
