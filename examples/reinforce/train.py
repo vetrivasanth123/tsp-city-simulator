@@ -166,7 +166,7 @@ def train_reinforce(
         }
         history.append(episode_record)
 
-       should_log = (
+        should_log = (
             episode % config.log_interval == 0
             or episode == 1
             or episode == config.num_episodes
