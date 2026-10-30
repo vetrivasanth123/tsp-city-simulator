@@ -38,6 +38,20 @@ def reinforce_update(
         raise ValueError("gamma must be finite and between 0 and 1.")
 
     num_steps = len(trajectory)
+    
+    # ========================================================
+    # DEBUG: VERIFY THE ACTUAL OPTIMIZER LEARNING RATE
+    # ========================================================
+
+    print("\n========== OPTIMIZER VERIFICATION ==========")
+    print("Optimizer:", type(optimizer).__name__)
+
+    for i, group in enumerate(optimizer.param_groups):
+        print(f"Parameter group {i} learning rate: {group['lr']}")
+
+    print("============================================")
+
+    # ========================================================
 
     if num_steps == 0:
         raise ValueError("Cannot update the policy from an empty episode.")
