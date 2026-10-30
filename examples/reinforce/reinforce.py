@@ -106,7 +106,6 @@ def reinforce_update(
             available_actions,
             intended_action,
         )
-
         
         # TEMPORARY DIAGNOSTIC 2: check log probability.
         if not torch.isfinite(log_prob).all():
@@ -118,7 +117,30 @@ def reinforce_update(
             raise FloatingPointError(
                 f"Invalid log probability at timestep {t}"
             )
-
+        
+        # TEMPORARY DIAGNOSTIC 3:
+        # Measure gradient of log probability WITHOUT return scaling.
+        if t == 0:
+            policy.zero_grad(set_to_none=True)
+        
+            log_prob.backward(retain_graph=True)
+        
+            print("\n========== LOG-PROBABILITY GRADIENT: t=0 ==========")
+        
+            for name, parameter in policy.named_parameters():
+                if parameter.grad is not None:
+                    grad = parameter.grad.detach()
+        
+                    print(
+                        f"{name:30s} | "
+                        f"grad_norm={torch.linalg.vector_norm(grad).item():.6e} | "
+                        f"grad_max={grad.abs().max().item():.6e}"
+                    )
+        
+            policy.zero_grad(set_to_none=True)
+        
+            print("===================================================")
+        
         # PyTorch minimizes losses, so negate the policy-gradient objective.
         loss = -(gamma ** t) * G_t * log_prob
 
