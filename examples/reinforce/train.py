@@ -40,34 +40,35 @@ def train_reinforce(
     if policy_type == "linear":
         policy = SoftmaxPolicy(num_cities)
         
-        else:
-            # ============================================================
-            # TEMPORARY DIAGNOSTIC: GRID-DIAGONAL COST NORMALIZATION
-            # Purpose: Pass the actual environment dimensions to the MLP.
-            # ============================================================
-    
-            grid_width = env.instance.width
-            grid_height = env.instance.height
-    
-            if grid_width is None or grid_height is None:
-                raise ValueError(
-                    "Grid width and height must be specified in TSPInstance "
-                    "for the normalization experiment."
+    else:
+        # ============================================================
+                # TEMPORARY DIAGNOSTIC: GRID-DIAGONAL COST NORMALIZATION
+                # Purpose: Pass the actual environment dimensions to the MLP.
+                # ============================================================
+        
+                grid_width = env.instance.width
+                grid_height = env.instance.height
+        
+                if grid_width is None or grid_height is None:
+                    raise ValueError(
+                        "Grid width and height must be specified in TSPInstance "
+                        "for the normalization experiment."
+                    )
+        
+                policy = MLPSoftmaxPolicy(
+                    num_cities=num_cities,
+                    cost_matrix=env.instance.cost_matrix,
+                    start_city=start_city,
+                    hidden_sizes=(128, 64),
+                    grid_width=grid_width,
+                    grid_height=grid_height,
+                    normalize_cost_matrix=False,  # Run A: original input
                 )
-    
-            policy = MLPSoftmaxPolicy(
-                num_cities=num_cities,
-                cost_matrix=env.instance.cost_matrix,
-                start_city=start_city,
-                hidden_sizes=(128, 64),
-                grid_width=grid_width,
-                grid_height=grid_height,
-                normalize_cost_matrix=False,  # Run A: original input
-            )
-    
-            # ============================================================
-            # END TEMPORARY DIAGNOSTIC
-            # ============================================================
+        
+                # ============================================================
+                # END TEMPORARY DIAGNOSTIC
+                # ============================================================
+                
     optimizer = torch.optim.SGD(
         policy.parameters(),
         lr=config.learning_rate,
