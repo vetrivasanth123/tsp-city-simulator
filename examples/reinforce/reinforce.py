@@ -201,6 +201,31 @@ def reinforce_update(
         # ====================================================
 
         # ====================================================
+        # TEMPORARY DEBUG CODE 6 STARTED
+        # Purpose: Identify which MLP layer has exploding gradients.
+        # ====================================================
+
+        print(f"\n========== PER-LAYER GRADIENT BREAKDOWN: t={t} ==========")
+
+        for name, parameter in policy.named_parameters():
+
+            if parameter.grad is not None:
+
+                grad = parameter.grad.detach()
+
+                print(
+                    f"{name:30s} | "
+                    f"gradient_norm={torch.linalg.vector_norm(grad).item():.6e} | "
+                    f"gradient_max={grad.abs().max().item():.6e} | "
+                    f"parameter_max={parameter.detach().abs().max().item():.6e}"
+                )
+
+        print("=========================================================")
+
+        # ====================================================
+        # TEMPORARY DEBUG CODE 6 ENDED
+        # ====================================================
+        # ====================================================
         # DEBUG CODE 4 STARTED
         # Purpose: Capture parameters immediately before update.
         # ====================================================
