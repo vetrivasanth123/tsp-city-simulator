@@ -252,9 +252,11 @@ def reinforce_update(
         # TEMPORARY DIAGNOSTIC 7 STARTED
         # Purpose: Identify which input feature group contributes
         # most to the first-layer weight gradients at t=0.
+        # MLP-specific diagnostic; skip for linear policy.
         # ====================================================
 
-        if t == 0:
+        if t == 0 and hasattr(policy, "network"):
+
             weight_grad = policy.network[0].weight.grad.detach()
 
             n = policy.num_cities
