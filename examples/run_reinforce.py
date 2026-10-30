@@ -98,7 +98,7 @@ def main():
         gamma=args.gamma,
         num_episodes=args.episodes,
         eval_episodes=args.eval_episodes,
-        log_interval=25,
+        log_interval=5,
         seed=args.seed,
     )
 
