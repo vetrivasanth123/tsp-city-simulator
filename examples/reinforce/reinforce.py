@@ -247,6 +247,45 @@ def reinforce_update(
         # ====================================================
         # TEMPORARY DEBUG CODE 6 ENDED
         # ====================================================
+
+        # ====================================================
+        # TEMPORARY DIAGNOSTIC 7 STARTED
+        # Purpose: Identify which input feature group contributes
+        # most to the first-layer weight gradients at t=0.
+        # ====================================================
+
+        if t == 0:
+            weight_grad = policy.network[0].weight.grad.detach()
+
+            n = policy.num_cities
+
+            # Input layout:
+            # [current_city, start_city, visited_mask, cost_matrix]
+
+            current_city_grad = weight_grad[:, :n]
+            start_city_grad = weight_grad[:, n:2*n]
+            visited_grad = weight_grad[:, 2*n:3*n]
+            cost_matrix_grad = weight_grad[:, 3*n:3*n + n*n]
+
+            print("\n========== FIRST-LAYER GRADIENT GROUPS ==========")
+
+            for name, grad in [
+                ("Current city", current_city_grad),
+                ("Starting city", start_city_grad),
+                ("Visited mask", visited_grad),
+                ("Cost matrix", cost_matrix_grad),
+            ]:
+                print(
+                    f"{name:20s} | "
+                    f"L2 norm={torch.linalg.vector_norm(grad).item():.6e} | "
+                    f"Max abs={grad.abs().max().item():.6e}"
+                )
+
+            print("=================================================")
+
+        # ====================================================
+        # TEMPORARY DIAGNOSTIC 7 ENDED
+        # ====================================================
         # ====================================================
         # DEBUG CODE 4 STARTED
         # Purpose: Capture parameters immediately before update.
