@@ -175,10 +175,10 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
         num_cities: int,
         cost_matrix,
         start_city: int,
-        grid_width: float,
-        grid_height: float,
-        normalize_cost_matrix: bool = False,
         hidden_sizes: tuple[int, int] = (128, 64),
+        grid_width: float | None = None,
+        grid_height: float | None = None,
+        normalize_cost_matrix: bool = False,
     ):
         super().__init__(num_cities)
 
@@ -208,11 +208,18 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
         # Purpose: Scale cost-matrix inputs relative to grid dimensions.
         # ============================================================
         
-        if grid_width <= 0 or grid_height <= 0:
-            raise ValueError("Grid dimensions must be positive.")
+        if (
+            grid_width is None
+            or grid_height is None
+            or not np.isfinite(grid_width)
+            or not np.isfinite(grid_height)
+            or grid_width <= 0
+            or grid_height <= 0
+        ):
+            raise ValueError("Grid dimensions must be finite and positive.")
         
         self.grid_diagonal = float(
-            np.sqrt(grid_width**2 + grid_height**2)
+            np.hypot(grid_width, grid_height)
         )
         
         self.normalize_cost_matrix = normalize_cost_matrix
