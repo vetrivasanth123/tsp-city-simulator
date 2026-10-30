@@ -54,6 +54,22 @@ def reinforce_update(
     returns = calculate_returns(trajectory.rewards, gamma)
 
     losses = []
+    # ========================================================
+    # DEBUG CODE 1 STARTED
+    # Purpose: Inspect the scale of rewards and returns.
+    # ========================================================
+
+    print("\n========== REINFORCE RETURN DIAGNOSTICS ==========")
+    print("Number of steps:", num_steps)
+    print("Gamma:", gamma)
+    print("Rewards:", [float(r) for r in trajectory.rewards])
+    print("Returns:", [float(r) for r in returns])
+    print("Maximum absolute return:", max(abs(float(r)) for r in returns))
+    print("==================================================")
+
+    # ========================================================
+    # DEBUG CODE 1 ENDED
+    # ========================================================
 
     # Textbook REINFORCE: update once per decision, in chronological order.
     for t in range(num_steps):
@@ -105,6 +121,22 @@ def reinforce_update(
 
         # PyTorch minimizes losses, so negate the policy-gradient objective.
         loss = -(gamma ** t) * G_t * log_prob
+
+        # ====================================================
+        # DEBUG CODE 2 STARTED
+        # Purpose: Inspect the policy-gradient loss components.
+        # ====================================================
+
+        print(f"\n[LOSS DEBUG] Timestep: {t}")
+        print("Reward:", float(trajectory.rewards[t]))
+        print("Return G_t:", float(G_t))
+        print("Discount factor:", float(gamma ** t))
+        print("Log probability:", float(log_prob.detach()))
+        print("Loss:", float(loss.detach()))
+
+        # ====================================================
+        # DEBUG CODE 2 ENDED
+        # ====================================================
         
         # TEMPORARY DIAGNOSTIC 3: check loss.
         if not torch.isfinite(loss).all():
@@ -136,7 +168,94 @@ def reinforce_update(
                         f"Non-finite gradient at timestep {t}: {name}"
                     )
 
+        # ====================================================
+        # DEBUG CODE 3 STARTED
+        # Purpose: Measure gradient magnitude before updating.
+        # ====================================================
+
+        gradient_norm_squared = 0.0
+        max_gradient = 0.0
+
+        for name, parameter in policy.named_parameters():
+            if parameter.grad is not None:
+                grad_norm = torch.linalg.vector_norm(parameter.grad.detach()).item()
+                gradient_norm_squared += grad_norm ** 2
+
+                parameter_max_gradient = (
+                    parameter.grad.detach().abs().max().item()
+                )
+
+                max_gradient = max(
+                    max_gradient,
+                    parameter_max_gradient,
+                )
+
+        global_gradient_norm = math.sqrt(gradient_norm_squared)
+
+        print(f"\n[GRADIENT DEBUG] Timestep: {t}")
+        print("Global gradient norm:", global_gradient_norm)
+        print("Maximum individual gradient:", max_gradient)
+
+        # ====================================================
+        # DEBUG CODE 3 ENDED
+        # ====================================================
+
+        # ====================================================
+        # DEBUG CODE 4 STARTED
+        # Purpose: Capture parameters immediately before update.
+        # ====================================================
+
+        parameters_before = {
+            name: parameter.detach().clone()
+            for name, parameter in policy.named_parameters()
+        }
+
+        # ====================================================
+        # DEBUG CODE 4 ENDED
+        # ====================================================
+        
         optimizer.step()
+
+        # ====================================================
+        # DEBUG CODE 5 STARTED
+        # Purpose: Measure actual parameter changes.
+        # ====================================================
+
+        update_norm_squared = 0.0
+        maximum_parameter = 0.0
+        maximum_parameter_update = 0.0
+
+        for name, parameter in policy.named_parameters():
+
+            before = parameters_before[name]
+            after = parameter.detach()
+
+            delta = after - before
+
+            update_norm = torch.linalg.vector_norm(delta).item()
+            update_norm_squared += update_norm ** 2
+
+            maximum_parameter = max(
+                maximum_parameter,
+                after.abs().max().item(),
+            )
+
+            maximum_parameter_update = max(
+                maximum_parameter_update,
+                delta.abs().max().item(),
+            )
+
+        global_update_norm = math.sqrt(update_norm_squared)
+
+        print(f"\n[PARAMETER UPDATE DEBUG] Timestep: {t}")
+        print("Global parameter update norm:", global_update_norm)
+        print("Maximum individual parameter update:", maximum_parameter_update)
+        print("Maximum absolute parameter after update:", maximum_parameter)
+
+        # ====================================================
+        # DEBUG CODE 5 ENDED
+        # ====================================================
+        
 
         # TEMPORARY: inspect parameter magnitudes after each update.
         max_parameter = max(
