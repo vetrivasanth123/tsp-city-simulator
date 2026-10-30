@@ -166,11 +166,21 @@ def train_reinforce(
         }
         history.append(episode_record)
 
-        if (
+       should_log = (
             episode % config.log_interval == 0
             or episode == 1
             or episode == config.num_episodes
-        ):
+        )
+        
+        print(
+            f"[LOG DEBUG] Episode={episode}/{config.num_episodes} | "
+            f"log_interval={config.log_interval} | "
+            f"remainder={episode % config.log_interval} | "
+            f"should_log={should_log}",
+            flush=True
+        )
+        
+        if should_log:
             print(
                 f"Policy: {policy_type:6s} | "
                 f"Episode {episode:4d}/{config.num_episodes} | "
