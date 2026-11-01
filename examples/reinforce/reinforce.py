@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import math
-
+import numpy as np
 import torch
 from torch.optim import Optimizer
 
@@ -113,7 +113,14 @@ def reinforce_update(
             )
         
     
+        # TEMPORARY DIAGNOSTIC: ACTION GRADIENT SIGNAL
+        with torch.no_grad():
+            dist_before = policy.get_distribution(
+                observation, available_actions
+            )
+            probs_before = dist_before.probs.detach().cpu().numpy()
         
+        # END TEMPORARY DIAGNOSTIC
         # PyTorch minimizes losses, so negate the policy-gradient objective.
         loss = -(gamma ** t) * G_t * log_prob
 
@@ -170,7 +177,23 @@ def reinforce_update(
         # ====================================================
         # DEBUG CODE 4 ENDED
         # ====================================================
+        # TEMPORARY DIAGNOSTIC: PER-ACTION LOGIT GRADIENT
+        if hasattr(policy, "linear"):
+            output_layer = policy.linear
+        elif hasattr(policy, "network"):
+            output_layer = policy.network[-1]
+        else:
+            output_layer = None
         
+        if output_layer is not None and output_layer.bias.grad is not None:
+            print(
+                f"[GRADIENT SIGNAL] t={t} | "
+                f"action={intended_action} | "
+                f"G={float(G_t):.4f} | "
+                f"probabilities={np.round(probs_before, 4)} | "
+                f"logit_bias_grad={output_layer.bias.grad.detach().cpu().numpy()}"
+            )
+        # END TEMPORARY DIAGNOSTIC
         optimizer.step()
 
         # DIAGNOSTIC: probability of the SAME state-action pair after update
