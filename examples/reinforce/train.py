@@ -74,10 +74,10 @@ def train_reinforce(
     initial_policy_state = copy.deepcopy(policy.state_dict())
     # END TEMPORARY DIAGNOSTIC  
                            
-        optimizer = torch.optim.SGD(
-            policy.parameters(),
-            lr=config.learning_rate,
-        )
+    optimizer = torch.optim.SGD(
+        policy.parameters(),
+        lr=config.learning_rate,
+    )
     
         history: list[dict[str, int | float]] = []
     
