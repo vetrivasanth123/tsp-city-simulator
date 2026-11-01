@@ -109,112 +109,185 @@ def main():
         start_city=start_city,
         policy_type=args.policy,
     )
-    # TEMPORARY DIAGNOSTIC: enumerate all 24 policy tours
+    
+    # ============================================================
+    # TEMPORARY DIAGNOSTIC: INITIAL vs TRAINED POLICY ENUMERATION
+    # Purpose:
+    #   Compare both policies over every possible intended tour.
+    #   Does NOT modify the training algorithm or optimizer.
+    # ============================================================
 
     import itertools
-    import numpy as np
-    import torch
-    
+    import copy
+
     num_cities = instance.num_cities
-    other_cities = [c for c in range(num_cities) if c != start_city]
-    
-    results = []
-    
-    # Keep policy parameters unchanged during evaluation.
-    was_training = policy.training
-    policy.eval()
-    
-    try:
-        with torch.no_grad():
-            for perm in itertools.permutations(other_cities):
-    
-                route = [start_city] + list(perm)
-                visited = np.zeros(num_cities, dtype=np.float32)
-                visited[start_city] = 1.0
-    
-                route_probability = 1.0
-    
-                for next_city in perm:
-    
-                    observation = {
-                        "current_city": route[route.index(next_city) - 1],
-                        "visited_mask": visited.copy(),
-                    }
-    
-                    available_actions = [
-                        c for c in range(num_cities)
-                        if visited[c] == 0
-                    ]
-    
-                    distribution = policy.get_distribution(
-                        observation,
-                        available_actions,
-                    )
-    
-                    route_probability *= float(
-                        distribution.probs[next_city].item()
-                    )
-    
-                    visited[next_city] = 1.0
-    
-                # CLOSE is forced after all cities have been visited.
-                results.append({
-                    "tour": route + [start_city],
-                    "probability": route_probability,
-                })
-    
-    finally:
-        policy.train(was_training)
-    
-    # Calculate the cost of each route using the project's cost functions.
-    for item in results:
-        route = item["tour"]
-    
+    other_cities = [
+        c for c in range(num_cities) if c != start_city
+    ]
+
+    # Save the final trained parameters so they can be restored.
+    trained_policy_state = copy.deepcopy(policy.state_dict())
+    initial_policy_state = policy.initial_policy_state
+
+    # Calculate the cost of every possible tour once.
+    tour_costs = {}
+
+    for perm in itertools.permutations(other_cities):
+        route = [start_city] + list(perm) + [start_city]
+
         transition_total = sum(
             transition_cost(instance, a, b)
             for a, b in zip(route[:-1], route[1:])
         )
-    
+
         internal_total = sum(
             city_internal_cost(instance, c)
             for c in range(num_cities)
         )
-    
-        item["cost"] = transition_total + internal_total
-    
-    probability_sum = sum(x["probability"] for x in results)
-    
-    expected_cost = sum(
-        x["probability"] * x["cost"] for x in results
-    )
-    
-    uniform_expected_cost = sum(
-        x["cost"] for x in results
-    ) / len(results)
-    
-    results.sort(key=lambda x: x["probability"], reverse=True)
-    
-    print("\n========== EXACT POLICY DIAGNOSTIC ==========")
-    print("Number of tours:", len(results))
-    print("Probability sum:", probability_sum)
-    print("Policy expected tour cost:", expected_cost)
-    print("Uniform-policy expected tour cost:", uniform_expected_cost)
-    
-    print("\nTop 10 tours by policy probability:")
-    for item in results[:10]:
-        print(
-            f"Tour: {item['tour']} | "
-            f"Probability: {item['probability']:.6f} | "
-            f"Cost: {item['cost']:.4f}"
+
+        tour_costs[tuple(route)] = (
+            transition_total + internal_total
         )
-    
-    print("\nBest possible tour:")
-    best = min(results, key=lambda x: x["cost"])
-    print(best)
-    
-    print("==============================================")
-    
+
+    def enumerate_policy_tours():
+        results = []
+
+        with torch.no_grad():
+            for perm in itertools.permutations(other_cities):
+
+                route = [start_city] + list(perm)
+                visited = np.zeros(num_cities, dtype=np.float32)
+                visited[start_city] = 1.0
+
+                route_probability = 1.0
+                current_city = start_city
+
+                for next_city in perm:
+
+                    observation = {
+                        "current_city": current_city,
+                        "visited_mask": visited.copy(),
+                    }
+
+                    available_actions = [
+                        c for c in range(num_cities)
+                        if visited[c] == 0
+                    ]
+
+                    distribution = policy.get_distribution(
+                        observation,
+                        available_actions,
+                    )
+
+                    route_probability *= float(
+                        distribution.probs[next_city].item()
+                    )
+
+                    visited[next_city] = 1.0
+                    current_city = next_city
+
+                closed_route = tuple(route + [start_city])
+
+                results.append({
+                    "tour": list(closed_route),
+                    "probability": route_probability,
+                    "cost": tour_costs[closed_route],
+                })
+
+        return results
+
+    was_training = policy.training
+
+    try:
+        policy.eval()
+
+        # Evaluate the initial, untrained policy.
+        policy.load_state_dict(initial_policy_state)
+        initial_results = enumerate_policy_tours()
+
+        # Evaluate the final, trained policy.
+        policy.load_state_dict(trained_policy_state)
+        trained_results = enumerate_policy_tours()
+
+    finally:
+        # Always restore the final trained parameters.
+        policy.load_state_dict(trained_policy_state)
+        policy.train(was_training)
+
+    def print_policy_summary(label, results):
+
+        probability_sum = sum(
+            item["probability"] for item in results
+        )
+
+        expected_cost = sum(
+            item["probability"] * item["cost"]
+            for item in results
+        )
+
+        uniform_expected_cost = sum(
+            item["cost"] for item in results
+        ) / len(results)
+
+        print(f"\n========== {label} ==========")
+        print("Number of tours:", len(results))
+        print(f"Probability sum: {probability_sum:.12f}")
+        print(f"Expected tour cost: {expected_cost:.6f}")
+        print(
+            f"Uniform expected tour cost: "
+            f"{uniform_expected_cost:.6f}"
+        )
+
+        print("\nTop 5 tours by probability:")
+
+        for item in sorted(
+            results,
+            key=lambda x: x["probability"],
+            reverse=True,
+        )[:5]:
+
+            print(
+                f"Tour: {item['tour']} | "
+                f"Probability: {item['probability']:.6f} | "
+                f"Cost: {item['cost']:.4f}"
+            )
+
+        return expected_cost, uniform_expected_cost
+
+    initial_expected_cost, uniform_expected_cost = (
+        print_policy_summary(
+            "INITIAL POLICY",
+            initial_results,
+        )
+    )
+
+    trained_expected_cost, _ = print_policy_summary(
+        "TRAINED POLICY",
+        trained_results,
+    )
+
+    print("\n========== TRAINING IMPROVEMENT ==========")
+
+    improvement = initial_expected_cost - trained_expected_cost
+
+    print(f"Initial expected cost : {initial_expected_cost:.6f}")
+    print(f"Trained expected cost : {trained_expected_cost:.6f}")
+    print(f"Uniform expected cost: {uniform_expected_cost:.6f}")
+    print(f"Cost improvement      : {improvement:.6f}")
+
+    if improvement > 0:
+        print("Result: Training reduced expected intended-tour cost.")
+    elif improvement < 0:
+        print("Result: Training increased expected intended-tour cost.")
+    else:
+        print("Result: No change in expected intended-tour cost.")
+
+    print("==========================================")
+
+    # ============================================================
     # END TEMPORARY DIAGNOSTIC
+    # ============================================================
+
     # 3. Evaluate the trained policy without updating its parameters.
     evaluation = evaluate_policy(
         env=env,
