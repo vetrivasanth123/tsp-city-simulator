@@ -127,10 +127,15 @@ class BaseSoftmaxPolicy(nn.Module):
     ) -> torch.Tensor:
         """Return log pi(action | state)."""
 
-        if intended_action not in available_actions:
+        legal_actions = list(available_actions)
+
+        if not legal_actions:
+            legal_actions = [self.close_action]
+        
+        if intended_action not in legal_actions:
             raise ValueError(
-                f"Selected action {intended_action} is not in "
-                f"available actions {available_actions}."
+                f"Selected action {intended_action} is not legal. "
+                f"Legal actions: {legal_actions}"
             )
         distribution = self.get_distribution(
             observation, available_actions
