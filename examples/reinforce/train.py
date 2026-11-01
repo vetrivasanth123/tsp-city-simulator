@@ -70,10 +70,10 @@ def train_reinforce(
                 # END TEMPORARY DIAGNOSTIC
                 # ============================================================
 
-        # TEMPORARY DIAGNOSTIC: save initial policy parameters
-        import copy
-        initial_policy_state = copy.deepcopy(policy.state_dict())
-        # END TEMPORARY DIAGNOSTIC            
+                # TEMPORARY DIAGNOSTIC: save initial policy parameters
+                import copy
+                initial_policy_state = copy.deepcopy(policy.state_dict())
+                # END TEMPORARY DIAGNOSTIC            
         optimizer = torch.optim.SGD(
             policy.parameters(),
             lr=config.learning_rate,
