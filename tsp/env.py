@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import numpy as np
@@ -21,12 +20,6 @@ class TSPEnv(gym.Env):
         self.instance = instance
         self.simulator = TSPSimulator(instance, seed=seed)
         self.total_cost = 0.0
-
-        # Select the reward experiment:
-        # "transition"       : transition cost only
-        # "current_internal" : transition + current city internal cost
-        # "next_internal"    : transition + destination city internal cost
-        self.reward_mode = "next_internal"
 
         n = instance.num_cities
 
@@ -54,11 +47,7 @@ class TSPEnv(gym.Env):
     def step(self, action):
         action = int(action)
 
-        # --------------------------------------------------
-        # CLOSE ACTION: return from final city to start city
-        # --------------------------------------------------
         if action == self.close_action:
-
             if self.simulator.available_actions():
                 raise ValueError(
                     "Cannot close the tour while valid actions remain."
@@ -70,49 +59,23 @@ class TSPEnv(gym.Env):
             state = self.simulator.close_tour()
 
             if current_city != start_city:
-
                 transition_step_cost = transition_cost(
                     self.instance,
                     current_city,
                     start_city,
                 )
-
-                if self.reward_mode == "transition":
-
-                    step_cost = transition_step_cost
-
-                elif self.reward_mode == "current_internal":
-
-                    internal_step_cost = city_internal_cost(
-                        self.instance,
-                        current_city,
-                    )
-
-                    step_cost = (
-                        transition_step_cost + internal_step_cost
-                    )
-
-                elif self.reward_mode == "next_internal":
-
-                    internal_step_cost = city_internal_cost(
-                        self.instance,
-                        start_city,
-                    )
-
-                    step_cost = (
-                        transition_step_cost + internal_step_cost
-                    )
-
-                else:
-                    raise ValueError(
-                        f"Unknown reward mode: {self.reward_mode}"
-                    )
-
+            
+                internal_step_cost = city_internal_cost(
+                    self.instance,
+                    current_city,
+                )
+            
+                step_cost = transition_step_cost + internal_step_cost
             else:
                 step_cost = 0.0
 
             self.total_cost += step_cost
-            reward = -step_cost
+            reward =-step_cost
 
             return (
                 self._observation(state),
@@ -122,9 +85,6 @@ class TSPEnv(gym.Env):
                 self._info(state),
             )
 
-        # --------------------------------------------------
-        # NORMAL CITY-TO-CITY MOVEMENT
-        # --------------------------------------------------
         if action not in self.simulator.available_actions():
             raise ValueError(f"Invalid action: {action}")
 
@@ -132,7 +92,6 @@ class TSPEnv(gym.Env):
 
         state = self.simulator.step(action)
 
-        # Use actual city reached, accounting for action slips.
         actual_city = state["current_city"]
 
         transition_step_cost = transition_cost(
@@ -140,40 +99,16 @@ class TSPEnv(gym.Env):
             current_city,
             actual_city,
         )
-
-        if self.reward_mode == "transition":
-
-            step_cost = transition_step_cost
-
-        elif self.reward_mode == "current_internal":
-
-            internal_step_cost = city_internal_cost(
-                self.instance,
-                current_city,
-            )
-
-            step_cost = (
-                transition_step_cost + internal_step_cost
-            )
-
-        elif self.reward_mode == "next_internal":
-
-            internal_step_cost = city_internal_cost(
-                self.instance,
-                actual_city,
-            )
-
-            step_cost = (
-                transition_step_cost + internal_step_cost
-            )
-
-        else:
-            raise ValueError(
-                f"Unknown reward mode: {self.reward_mode}"
-            )
-
+        
+        internal_step_cost = city_internal_cost(
+            self.instance,
+            current_city,
+        )
+        
+        step_cost = transition_step_cost + internal_step_cost
+        
         self.total_cost += step_cost
-        reward = -step_cost
+        reward =-step_cost
 
         info = self._info(state)
         info["transition"] = state["transition_info"]
@@ -206,3 +141,4 @@ class TSPEnv(gym.Env):
             "available_actions": list(state["available_actions"]),
             "total_cost": float(self.total_cost),
         }
+    
