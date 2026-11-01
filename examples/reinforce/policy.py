@@ -55,9 +55,8 @@ class BaseSoftmaxPolicy(nn.Module):
         """Create a categorical distribution over legal actions."""
 
         legal_actions = list(available_actions)
-
         if not legal_actions:
-            legal_actions = [self.close_action]
+            raise ValueError("No legal actions available.")
 
         if len(set(legal_actions)) != len(legal_actions):
             raise ValueError("available_actions contains duplicates.")
@@ -90,29 +89,19 @@ class BaseSoftmaxPolicy(nn.Module):
         )
 
         
-        # TEMPORARY MLP DIAGNOSTIC — remove after testing.
+        # ========================================================
+        # DIAGNOSTIC: NUMERICAL SAFETY CHECKS
+        # ========================================================
+        
         if not torch.isfinite(logits).all():
-            print("\n========== INVALID RAW LOGITS ==========")
-            print("Policy class:", type(self).__name__)
-            print("Phase:", getattr(self, "_debug_phase", "normal"))
-            print("Observation:", observation)
-            print("Available actions:", legal_actions)
-            print("Raw logits:", logits.detach().cpu())
-            print("Masked logits:", masked_logits.detach().cpu())
-
-            for name, parameter in self.named_parameters():
-                if not torch.isfinite(parameter).all():
-                    print("NON-FINITE PARAMETER:", name)
-                    print("NaN:", torch.isnan(parameter).sum().item())
-                    print("+Inf:", torch.isposinf(parameter).sum().item())
-                    print("-Inf:", torch.isneginf(parameter).sum().item())
-
-            print("========================================")
-            raise FloatingPointError("Non-finite raw policy logits")
-
+            raise FloatingPointError(
+                "Policy produced non-finite raw logits."
+            )
+        
         if not torch.isfinite(logits[action_mask]).all():
-            print("Non-finite logits among legal actions:", legal_actions)
-            raise FloatingPointError("Non-finite legal-action logits")
+            raise FloatingPointError(
+                "Policy produced non-finite logits for legal actions."
+            )
 
         return Categorical(logits=masked_logits)
 
@@ -138,6 +127,11 @@ class BaseSoftmaxPolicy(nn.Module):
     ) -> torch.Tensor:
         """Return log pi(action | state)."""
 
+        if intended_action not in available_actions:
+            raise ValueError(
+                f"Selected action {intended_action} is not in "
+                f"available actions {available_actions}."
+            )
         distribution = self.get_distribution(
             observation, available_actions
         )
@@ -203,10 +197,9 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
         self.start_city = start_city
         self.num_features = num_cities**2 + 3 * num_cities
 
-        # ============================================================
-        # TEMPORARY DIAGNOSTIC: GRID-DIAGONAL COST NORMALIZATION
-        # Purpose: Scale cost-matrix inputs relative to grid dimensions.
-        # ============================================================
+        # ========================================================
+        # COST MATRIX NORMALIZATION
+        # ========================================================
         
         if (
             grid_width is None
@@ -216,20 +209,15 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
             or grid_width <= 0
             or grid_height <= 0
         ):
-            raise ValueError("Grid dimensions must be finite and positive.")
+            raise ValueError(
+                "Grid dimensions must be finite and positive."
+            )
         
         self.grid_diagonal = float(
             np.hypot(grid_width, grid_height)
         )
         
         self.normalize_cost_matrix = normalize_cost_matrix
-        
-        print("\n========== COST MATRIX SCALE DIAGNOSTIC ==========")
-        print("Grid width:", grid_width)
-        print("Grid height:", grid_height)
-        print("Grid diagonal:", self.grid_diagonal)
-        print("Normalize cost matrix:", self.normalize_cost_matrix)
-        print("==================================================")
         
         # ============================================================
         # END TEMPORARY DIAGNOSTIC
@@ -263,9 +251,9 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
 
         state_features = super().encode_observation(observation)
 
-        # ============================================================
-        # TEMPORARY DIAGNOSTIC: GRID-DIAGONAL COST NORMALIZATION
-        # ============================================================
+        # ========================================================
+        # ENCODE STATE AND INSTANCE FEATURES
+        # ========================================================
         
         if self.normalize_cost_matrix:
             cost_matrix_input = (
@@ -276,13 +264,12 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
         
         features = torch.cat(
             [
-                state_features[:self.num_cities],  # Current city
-                self.start_city_one_hot,            # Starting city
-                state_features[self.num_cities:],   # Visited mask
-                cost_matrix_input,                  # Cost matrix
+                state_features[:self.num_cities],
+                self.start_city_one_hot,
+                state_features[self.num_cities:],
+                cost_matrix_input,
             ]
         )
-        
         # ============================================================
         # END TEMPORARY DIAGNOSTIC
         # ============================================================
