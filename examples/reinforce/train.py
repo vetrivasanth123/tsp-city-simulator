@@ -11,6 +11,7 @@ from .config import ReinforceConfig
 from .policy import SoftmaxPolicy, MLPSoftmaxPolicy
 from .trajectory import EpisodeTrajectory
 from .reinforce import reinforce_update
+from .returns import calculate_returns
 
 
 def train_reinforce(
@@ -75,7 +76,6 @@ def train_reinforce(
     )
 
     history: list[dict[str, int | float]] = []
-    progress_logs = []
 
     print("\n========== TRAINING CONFIG DEBUG ==========")
     print(f"num_episodes : {config.num_episodes}")
@@ -85,59 +85,34 @@ def train_reinforce(
     print("===========================================\n", flush=True)
 
     for episode in range(1, config.num_episodes + 1):
-        print(
-            f"\n[EPISODE START] Starting episode {episode}/{config.num_episodes}",
-            flush=True
-        )
+
         observation, info = env.reset(start_city=start_city)
         trajectory = EpisodeTrajectory()
         terminated = False
+        # ============================================================
+        # DIAGNOSTIC: POLICY ENTROPY DURING EPISODE GENERATION
+        # ============================================================
+        
+        episode_entropies = []
 
         while not terminated:
             available_actions = info["available_actions"]
-            # TEMPORARY DIAGNOSTIC — inspect MLP input and activations once.
-            if policy_type == "mlp" and episode == 1 and len(trajectory.rewards) == 0:
-                with torch.no_grad():
-                    x = policy.encode_observation(observation)
+            # ============================================================
+            # DIAGNOSTIC: MEASURE ENTROPY BEFORE SAMPLING THE ACTION
+            # ============================================================
             
-                    z1 = policy.network[0](x)
-                    a1 = policy.network[1](z1)
-            
-                    z2 = policy.network[2](a1)
-                    a2 = policy.network[3](z2)
-            
-                    logits = policy.network[4](a2)
-            
-                    def show_stats(name, tensor):
-                        print(
-                            f"{name:20s} | "
-                            f"min={tensor.min().item():12.4f} | "
-                            f"max={tensor.max().item():12.4f} | "
-                            f"mean={tensor.mean().item():12.4f} | "
-                            f"std={tensor.std().item():12.4f} | "
-                            f"L2={torch.linalg.vector_norm(tensor).item():12.4f}"
-                        )
-            
-                    print("\n========== MLP SCALE DIAGNOSTICS ==========")
-            
-                    show_stats("Input features", x)
-                    show_stats("Current city", x[:num_cities])
-                    show_stats("Starting city", x[num_cities:2*num_cities])
-                    show_stats("Visited mask", x[2*num_cities:3*num_cities])
-                    show_stats("Cost matrix", x[3*num_cities:])
-            
-                    show_stats("Layer 1 pre-ReLU", z1)
-                    show_stats("Layer 1 activation", a1)
-                    show_stats("Layer 2 pre-ReLU", z2)
-                    show_stats("Layer 2 activation", a2)
-                    show_stats("Output logits", logits)
-            
-                    print("===========================================\n")
-
-            intended_action = policy.select_action(
+            distribution = policy.get_distribution(
                 observation,
                 available_actions,
             )
+            
+            # Exclude forced decisions (only one legal action).
+            if len(available_actions) > 1:
+                episode_entropies.append(
+                    float(distribution.entropy().item())
+                )
+            
+            intended_action = int(distribution.sample().item())
 
             next_observation, reward, terminated, truncated, info = (
                 env.step(intended_action)
@@ -166,6 +141,25 @@ def train_reinforce(
             gamma=config.gamma,
         )
 
+        # ============================================================
+        # DIAGNOSTIC: EPISODE RETURN STATISTICS
+        # ============================================================
+        
+        episode_returns = np.asarray(
+            calculate_returns(trajectory.rewards, config.gamma),
+            dtype=np.float64,
+        )
+        
+        return_mean = float(np.mean(episode_returns))
+        return_std = float(np.std(episode_returns))
+        return_min = float(np.min(episode_returns))
+        return_max = float(np.max(episode_returns))
+        
+        mean_entropy = (
+            float(np.mean(episode_entropies))
+            if episode_entropies
+            else 0.0
+        )
         total_reward = float(sum(trajectory.rewards))
         total_cost = -total_reward
 
@@ -175,6 +169,13 @@ def train_reinforce(
             "total_cost": total_cost,
             "mean_loss": diagnostics["mean_loss"],
             "num_updates": diagnostics["num_updates"],
+        
+            # Diagnostic measurements
+            "return_mean": return_mean,
+            "return_std": return_std,
+            "return_min": return_min,
+            "return_max": return_max,
+            "policy_entropy": mean_entropy,
         }
         history.append(episode_record)
 
@@ -184,29 +185,17 @@ def train_reinforce(
             or episode == config.num_episodes
         )
         
-        if should_log:
-            progress_logs.append(
-                f"Policy: {policy_type:6s} | "
-                f"Episode {episode:4d}/{config.num_episodes} | "
-                f"Cost: {total_cost:10.4f} | "
-                f"Reward: {total_reward:10.4f} | "
-                f"Mean loss: {diagnostics['mean_loss']:10.4f} | "
-                f"Updates: {int(diagnostics['num_updates'])}"
-            )
+       if should_log:
             print(
                 f"Policy: {policy_type:6s} | "
                 f"Episode {episode:4d}/{config.num_episodes} | "
-                f"Cost: {total_cost:10.4f} | "
-                f"Reward: {total_reward:10.4f} | "
-                f"Mean loss: {diagnostics['mean_loss']:10.4f} | "
-                f"Updates: {int(diagnostics['num_updates'])}"
+                f"Cost: {total_cost:9.4f} | "
+                f"Return μ: {return_mean:9.4f} | "
+                f"Return σ: {return_std:8.4f} | "
+                f"Entropy: {mean_entropy:7.4f}",
+                flush=True,
             )
-    print("\n========== TRAINING PROGRESS SUMMARY ==========")
-
-    for log in progress_logs:
-        print(log)
-    
-    print("================================================\n", flush=True)        
+        
 
     return policy, history
 
