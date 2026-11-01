@@ -191,29 +191,35 @@ def train_reinforce(
                 f"Episode {episode:4d}/{config.num_episodes} | "
                 f"Cost: {total_cost:9.4f} | "
                 f"Reward: {total_reward:9.4f} | "
-                f"Mean loss: {mean_loss:9.4f} | "
-                f"Updates: {num_updates} | "
+                f"Mean loss: {diagnostics['mean_loss']:9.4f} | "
+                f"Updates: {int(diagnostics['num_updates'])} | "
                 f"Return μ: {return_mean:9.4f} | "
                 f"Return σ: {return_std:9.4f} | "
                 f"Entropy: {mean_entropy:.4f}",
                 flush=True,
             )
+        # ============================================================
+        # FINAL TRAINING SUMMARY
+        # ============================================================
+        
         print("\n========== TRAINING SUMMARY ==========")
-
+        
         for entry in history:
             print(
                 f"Policy: {policy_type:<6} | "
-                f"Episode {entry['episode']:4d} | "
+                f"Episode {entry['episode']:4d}/{config.num_episodes} | "
                 f"Cost: {entry['total_cost']:9.4f} | "
                 f"Reward: {entry['total_reward']:9.4f} | "
                 f"Mean loss: {entry['mean_loss']:9.4f} | "
-                f"Updates: {entry['num_updates']} | "
+                f"Updates: {int(entry['num_updates'])} | "
                 f"Return μ: {entry['return_mean']:9.4f} | "
                 f"Return σ: {entry['return_std']:9.4f} | "
-                f"Entropy: {entry['mean_entropy']:.4f}"
+                f"Entropy: {entry['policy_entropy']:.4f}"
             )
         
         print("======================================\n", flush=True)
+
+return policy, history
 
     return policy, history
 
