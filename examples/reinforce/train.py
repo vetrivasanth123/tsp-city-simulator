@@ -149,7 +149,22 @@ def train_reinforce(
             trajectory.rewards,
             config.gamma,
         )
-
+        # ============================================================
+        # TEMPORARY DIAGNOSTIC: RETURN SIGN AND RELATIVE QUALITY
+        # ============================================================
+        
+        episode_total_cost = -sum(trajectory.rewards)
+        
+        print(
+            f"[LEARNING SIGNAL] "
+            f"Episode cost={episode_total_cost:.4f} | "
+            f"Mean G={np.mean(diagnostic_returns):.4f} | "
+            f"Min G={np.min(diagnostic_returns):.4f} | "
+            f"Max G={np.max(diagnostic_returns):.4f} | "
+            f"All returns negative={all(g < 0 for g in diagnostic_returns)}"
+        )
+        
+        # END TEMPORARY DIAGNOSTIC
         print(f"\n[RETURN-COST DIAGNOSTIC] Episode {episode}")
 
         for t, (reward_t, return_t) in enumerate(
