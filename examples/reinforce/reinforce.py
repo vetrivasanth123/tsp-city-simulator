@@ -182,10 +182,26 @@ def reinforce_update(
         maximum_parameter = 0.0
         
         for name, parameter in policy.named_parameters():
-            if not torch.isfinite(parameter).all():
-                raise FloatingPointError(
-                    f"Non-finite parameter after update at timestep {t}: {name}"
-                )
+            before = parameters_before[name]
+            after = parameter.detach()
+        
+            delta = after - before
+        
+            update_norm_squared += (
+                torch.linalg.vector_norm(delta).item() ** 2
+            )
+        
+            maximum_parameter_update = max(
+                maximum_parameter_update,
+                delta.abs().max().item(),
+            )
+        
+            maximum_parameter = max(
+                maximum_parameter,
+                after.abs().max().item(),
+            )
+        
+        global_update_norm = math.sqrt(update_norm_squared)
         # ====================================================
         # DEBUG CODE 5 ENDED
         # ====================================================
