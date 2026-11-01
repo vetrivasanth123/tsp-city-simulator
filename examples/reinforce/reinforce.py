@@ -182,10 +182,10 @@ def reinforce_update(
         maximum_parameter = 0.0
         
         for name, parameter in policy.named_parameters():
-        if not torch.isfinite(parameter).all():
-            raise FloatingPointError(
-                f"Non-finite parameter after update at timestep {t}: {name}"
-            )
+            if not torch.isfinite(parameter).all():
+                raise FloatingPointError(
+                    f"Non-finite parameter after update at timestep {t}: {name}"
+                )
         # ====================================================
         # DEBUG CODE 5 ENDED
         # ====================================================
