@@ -40,16 +40,15 @@ def reinforce_update(
     num_steps = len(trajectory)
     
     # ========================================================
-    # DEBUG: VERIFY THE ACTUAL OPTIMIZER LEARNING RATE
+    # DIAGNOSTIC: VERIFY OPTIMIZER SETTINGS ONCE
     # ========================================================
-
-    print("\n========== OPTIMIZER VERIFICATION ==========")
-    print("Optimizer:", type(optimizer).__name__)
-
-    for i, group in enumerate(optimizer.param_groups):
-        print(f"Parameter group {i} learning rate: {group['lr']}")
-
-    print("============================================")
+    
+    if not hasattr(policy, "_optimizer_verified"):
+        print(
+            f"[OPTIMIZER] {type(optimizer).__name__} | "
+            f"Learning rate: {optimizer.param_groups[0]['lr']}"
+        )
+        policy._optimizer_verified = True
 
     # ========================================================
 
@@ -69,18 +68,13 @@ def reinforce_update(
 
     losses = []
     # ========================================================
-    # DEBUG CODE 1 STARTED
-    # Purpose: Inspect the scale of rewards and returns.
+    # DIAGNOSTIC: RETURN SCALE
     # ========================================================
-
-    print("\n========== REINFORCE RETURN DIAGNOSTICS ==========")
-    print("Number of steps:", num_steps)
-    print("Gamma:", gamma)
-    print("Rewards:", [float(r) for r in trajectory.rewards])
-    print("Returns:", [float(r) for r in returns])
-    print("Maximum absolute return:", max(abs(float(r)) for r in returns))
-    print("==================================================")
-
+    
+    return_abs_max = max(abs(float(r)) for r in returns)
+    
+    if not all(math.isfinite(float(r)) for r in returns):
+        raise FloatingPointError("Non-finite episode returns")
     # ========================================================
     # DEBUG CODE 1 ENDED
     # ========================================================
@@ -120,7 +114,12 @@ def reinforce_update(
             available_actions,
             intended_action,
         )
+        # ========================================================
+        # DIAGNOSTIC: SELECTED ACTION PROBABILITY
+        # ========================================================
         
+        selected_action_probability = float(log_prob.detach().exp().item())
+                
         # TEMPORARY DIAGNOSTIC 2: check log probability.
         if not torch.isfinite(log_prob).all():
             print(f"\n[FAIL] Invalid log probability at timestep {t}")
@@ -132,47 +131,11 @@ def reinforce_update(
                 f"Invalid log probability at timestep {t}"
             )
         
-        # TEMPORARY DIAGNOSTIC 3:
-        # Measure gradient of log probability WITHOUT return scaling.
-        if t == 0:
-            policy.zero_grad(set_to_none=True)
-        
-            log_prob.backward(retain_graph=True)
-        
-            print("\n========== LOG-PROBABILITY GRADIENT: t=0 ==========")
-        
-            for name, parameter in policy.named_parameters():
-                if parameter.grad is not None:
-                    grad = parameter.grad.detach()
-        
-                    print(
-                        f"{name:30s} | "
-                        f"grad_norm={torch.linalg.vector_norm(grad).item():.6e} | "
-                        f"grad_max={grad.abs().max().item():.6e}"
-                    )
-        
-            policy.zero_grad(set_to_none=True)
-        
-            print("===================================================")
+    
         
         # PyTorch minimizes losses, so negate the policy-gradient objective.
         loss = -(gamma ** t) * G_t * log_prob
 
-        # ====================================================
-        # DEBUG CODE 2 STARTED
-        # Purpose: Inspect the policy-gradient loss components.
-        # ====================================================
-
-        print(f"\n[LOSS DEBUG] Timestep: {t}")
-        print("Reward:", float(trajectory.rewards[t]))
-        print("Return G_t:", float(G_t))
-        print("Discount factor:", float(gamma ** t))
-        print("Log probability:", float(log_prob.detach()))
-        print("Loss:", float(loss.detach()))
-
-        # ====================================================
-        # DEBUG CODE 2 ENDED
-        # ====================================================
         
         # TEMPORARY DIAGNOSTIC 3: check loss.
         if not torch.isfinite(loss).all():
@@ -204,109 +167,40 @@ def reinforce_update(
                         f"Non-finite gradient at timestep {t}: {name}"
                     )
 
-        # ====================================================
-        # DEBUG CODE 3 STARTED
-        # Purpose: Measure gradient magnitude before updating.
-        # ====================================================
-
+        # ========================================================
+        # DIAGNOSTIC: GLOBAL GRADIENT MAGNITUDE
+        # ========================================================
+        
         gradient_norm_squared = 0.0
         max_gradient = 0.0
-
+        
         for name, parameter in policy.named_parameters():
             if parameter.grad is not None:
-                grad_norm = torch.linalg.vector_norm(parameter.grad.detach()).item()
-                gradient_norm_squared += grad_norm ** 2
-
-                parameter_max_gradient = (
-                    parameter.grad.detach().abs().max().item()
+                grad = parameter.grad.detach()
+        
+                if not torch.isfinite(grad).all():
+                    raise FloatingPointError(
+                        f"Non-finite gradient at timestep {t}: {name}"
+                    )
+        
+                gradient_norm_squared += (
+                    torch.linalg.vector_norm(grad).item() ** 2
                 )
-
                 max_gradient = max(
                     max_gradient,
-                    parameter_max_gradient,
+                    grad.abs().max().item(),
                 )
-
+        
         global_gradient_norm = math.sqrt(gradient_norm_squared)
-
-        print(f"\n[GRADIENT DEBUG] Timestep: {t}")
-        print("Global gradient norm:", global_gradient_norm)
-        print("Maximum individual gradient:", max_gradient)
 
         # ====================================================
         # DEBUG CODE 3 ENDED
         # ====================================================
 
-        # ====================================================
-        # TEMPORARY DEBUG CODE 6 STARTED
-        # Purpose: Identify which MLP layer has exploding gradients.
-        # ====================================================
-
-        print(f"\n========== PER-LAYER GRADIENT BREAKDOWN: t={t} ==========")
-
-        for name, parameter in policy.named_parameters():
-
-            if parameter.grad is not None:
-
-                grad = parameter.grad.detach()
-
-                print(
-                    f"{name:30s} | "
-                    f"gradient_norm={torch.linalg.vector_norm(grad).item():.6e} | "
-                    f"gradient_max={grad.abs().max().item():.6e} | "
-                    f"parameter_max={parameter.detach().abs().max().item():.6e}"
-                )
-
-        print("=========================================================")
-
-        # ====================================================
-        # TEMPORARY DEBUG CODE 6 ENDED
-        # ====================================================
-
-        # ====================================================
-        # TEMPORARY DIAGNOSTIC 7 STARTED
-        # Purpose: Identify which input feature group contributes
-        # most to the first-layer weight gradients at t=0.
-        # MLP-specific diagnostic; skip for linear policy.
-        # ====================================================
-
-        if t == 0 and hasattr(policy, "network"):
-
-            weight_grad = policy.network[0].weight.grad.detach()
-
-            n = policy.num_cities
-
-            # Input layout:
-            # [current_city, start_city, visited_mask, cost_matrix]
-
-            current_city_grad = weight_grad[:, :n]
-            start_city_grad = weight_grad[:, n:2*n]
-            visited_grad = weight_grad[:, 2*n:3*n]
-            cost_matrix_grad = weight_grad[:, 3*n:3*n + n*n]
-
-            print("\n========== FIRST-LAYER GRADIENT GROUPS ==========")
-
-            for name, grad in [
-                ("Current city", current_city_grad),
-                ("Starting city", start_city_grad),
-                ("Visited mask", visited_grad),
-                ("Cost matrix", cost_matrix_grad),
-            ]:
-                print(
-                    f"{name:20s} | "
-                    f"L2 norm={torch.linalg.vector_norm(grad).item():.6e} | "
-                    f"Max abs={grad.abs().max().item():.6e}"
-                )
-
-            print("=================================================")
-
-        # ====================================================
-        # TEMPORARY DIAGNOSTIC 7 ENDED
-        # ====================================================
-        # ====================================================
-        # DEBUG CODE 4 STARTED
-        # Purpose: Capture parameters immediately before update.
-        # ====================================================
-
+        # ========================================================
+        # DIAGNOSTIC: PARAMETERS BEFORE UPDATE
+        # ========================================================
+        
         parameters_before = {
             name: parameter.detach().clone()
             for name, parameter in policy.named_parameters()
@@ -318,57 +212,54 @@ def reinforce_update(
         
         optimizer.step()
 
-        # ====================================================
-        # DEBUG CODE 5 STARTED
-        # Purpose: Measure actual parameter changes.
-        # ====================================================
-
+        # ========================================================
+        # DIAGNOSTIC: ACTUAL PARAMETER UPDATE MAGNITUDE
+        # ========================================================
+        
         update_norm_squared = 0.0
-        maximum_parameter = 0.0
         maximum_parameter_update = 0.0
-
+        maximum_parameter = 0.0
+        
         for name, parameter in policy.named_parameters():
-
             before = parameters_before[name]
             after = parameter.detach()
-
+        
             delta = after - before
-
-            update_norm = torch.linalg.vector_norm(delta).item()
-            update_norm_squared += update_norm ** 2
-
-            maximum_parameter = max(
-                maximum_parameter,
-                after.abs().max().item(),
+        
+            update_norm_squared += (
+                torch.linalg.vector_norm(delta).item() ** 2
             )
-
+        
             maximum_parameter_update = max(
                 maximum_parameter_update,
                 delta.abs().max().item(),
             )
-
+        
+            maximum_parameter = max(
+                maximum_parameter,
+                after.abs().max().item(),
+            )
+        
         global_update_norm = math.sqrt(update_norm_squared)
-
-        print(f"\n[PARAMETER UPDATE DEBUG] Timestep: {t}")
-        print("Global parameter update norm:", global_update_norm)
-        print("Maximum individual parameter update:", maximum_parameter_update)
-        print("Maximum absolute parameter after update:", maximum_parameter)
-
         # ====================================================
         # DEBUG CODE 5 ENDED
         # ====================================================
         
 
-        # TEMPORARY: inspect parameter magnitudes after each update.
-        max_parameter = max(
-            p.detach().abs().max().item()
-            for p in policy.parameters()
-        )
-
+        # ========================================================
+        # DIAGNOSTIC: COMPACT PER-STEP UPDATE SUMMARY
+        # ========================================================
+        
         print(
-            f"[UPDATE] t={t}, "
-            f"loss={loss.detach().item():.6g}, "
-            f"max_abs_parameter={max_parameter:.6g}"
+            f"[STEP {t:02d}] "
+            f"G={float(G_t):.4f} | "
+            f"gamma^t={gamma ** t:.4f} | "
+            f"logP={float(log_prob.detach()):.4f} | "
+            f"P(action)={selected_action_probability:.4f} | "
+            f"grad={global_gradient_norm:.4e} | "
+            f"update={global_update_norm:.4e} | "
+            f"max|theta|={maximum_parameter:.4e}",
+            flush=True,
         )
         # TEMPORARY DIAGNOSTIC 5: check parameters after update.
         for name, parameter in policy.named_parameters():
