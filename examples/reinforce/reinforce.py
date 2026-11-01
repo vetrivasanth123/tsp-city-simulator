@@ -173,6 +173,27 @@ def reinforce_update(
         
         optimizer.step()
 
+        # DIAGNOSTIC: probability of the SAME state-action pair after update
+        with torch.no_grad():
+            distribution_after = policy.get_distribution(
+                observation,
+                available_actions,
+            )
+
+            action_index = available_actions.index(intended_action)
+
+            probability_after = float(
+                distribution_after.probs[action_index].item()
+            )
+
+        print(
+            f"[ACTION PROBABILITY CHANGE] "
+            f"t={t} | "
+            f"before={selected_action_probability:.8f} | "
+            f"after={probability_after:.8f} | "
+            f"change={probability_after - selected_action_probability:+.8f}"
+        )
+
         # ========================================================
         # DIAGNOSTIC: ACTUAL PARAMETER UPDATE MAGNITUDE
         # ========================================================
