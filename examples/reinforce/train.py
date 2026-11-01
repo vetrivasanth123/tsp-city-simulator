@@ -187,14 +187,14 @@ def train_reinforce(
         
         if should_log:
             print(
-                f"Policy: {policy_type:6s} | "
-                f"Episode {episode:4d}/{config.num_episodes} | "
-                f"Cost: {total_cost:9.4f} | "
-                f"Return μ: {return_mean:9.4f} | "
-                f"Return σ: {return_std:8.4f} | "
-                f"Entropy: {mean_entropy:7.4f}",
-                flush=True,
-            )
+                    f"Policy: {policy_type:6s} | "
+                    f"Episode {episode:4d}/{config.num_episodes} | "
+                    f"Cost: {total_cost:9.4f} | "
+                    f"Return μ: {return_mean:9.4f} | "
+                    f"Return σ: {return_std:8.4f} | "
+                    f"Entropy: {mean_entropy:7.4f}",
+                    flush=True,
+                )    
         
 
     return policy, history
