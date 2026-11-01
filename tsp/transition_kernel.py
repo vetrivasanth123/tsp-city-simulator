@@ -14,7 +14,7 @@ class TSPTransitionKernel:
         self,
         instance: TSPInstance,
         rng: random.Random,
-        kappa: float = 1.0,
+        kappa: float = 0.9,
         beta: float = 0.9,
     ) -> None:
         self.instance = instance
