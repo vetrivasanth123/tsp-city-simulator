@@ -185,7 +185,7 @@ def train_reinforce(
             or episode == config.num_episodes
         )
         
-       if should_log:
+        if should_log:
             print(
                 f"Policy: {policy_type:6s} | "
                 f"Episode {episode:4d}/{config.num_episodes} | "
