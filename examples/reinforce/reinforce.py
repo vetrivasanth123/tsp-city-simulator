@@ -180,7 +180,7 @@ def reinforce_update(
                 available_actions,
             )
 
-            action_index = available_actions.index(intended_action)
+            action_index = int(intended_action)
 
             probability_after = float(
                 distribution_after.probs[action_index].item()
