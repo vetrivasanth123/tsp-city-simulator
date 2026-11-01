@@ -133,6 +133,39 @@ def train_reinforce(
 
             observation = next_observation
 
+        # ============================================================
+        # TEMPORARY DIAGNOSTIC: RETURN-TO-COST RELATIONSHIP
+        # Purpose:
+        #   Compare each discounted return G_t against the actual
+        #   remaining cost from that timestep.
+        #   Does NOT modify rewards, returns, or policy updates.
+        # ============================================================
+
+        diagnostic_returns = calculate_returns(
+            trajectory.rewards,
+            config.gamma,
+        )
+
+        print(f"\n[RETURN-COST DIAGNOSTIC] Episode {episode}")
+
+        for t, (reward_t, return_t) in enumerate(
+            zip(trajectory.rewards, diagnostic_returns)
+        ):
+            remaining_cost = -sum(trajectory.rewards[t:])
+
+            print(
+                f"t={t} | "
+                f"reward={reward_t:9.4f} | "
+                f"G_t={return_t:9.4f} | "
+                f"undiscounted_remaining_cost={remaining_cost:9.4f}"
+            )
+
+        print("================================================\n")
+
+        # ============================================================
+        # END TEMPORARY DIAGNOSTIC
+        # ============================================================
+
         # Keep the existing sequential REINFORCE update unchanged.
         diagnostics = reinforce_update(
             policy=policy,
