@@ -69,11 +69,11 @@ def train_reinforce(
                 # ============================================================
                 # END TEMPORARY DIAGNOSTIC
                 # ============================================================
-
-                # TEMPORARY DIAGNOSTIC: save initial policy parameters
-                import copy
-                initial_policy_state = copy.deepcopy(policy.state_dict())
-                # END TEMPORARY DIAGNOSTIC            
+        # TEMPORARY DIAGNOSTIC: save initial policy parameters
+        import copy
+        initial_policy_state = copy.deepcopy(policy.state_dict())
+        # END TEMPORARY DIAGNOSTIC
+                           
         optimizer = torch.optim.SGD(
             policy.parameters(),
             lr=config.learning_rate,
@@ -253,10 +253,12 @@ def train_reinforce(
             f"Entropy: {entry['policy_entropy']:.4f}"
         )
         
-    print("======================================\n", flush=True)            
+    print("======================================\n", flush=True)      
+
     # TEMPORARY DIAGNOSTIC: attach initial parameters for comparison
     policy.initial_policy_state = initial_policy_state
     # END TEMPORARY DIAGNOSTIC
+
     return policy, history
 
 
