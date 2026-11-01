@@ -56,7 +56,7 @@ class BaseSoftmaxPolicy(nn.Module):
 
         legal_actions = list(available_actions)
         if not legal_actions:
-            raise ValueError("No legal actions available.")
+            legal_actions = [self.close_action]
 
         if len(set(legal_actions)) != len(legal_actions):
             raise ValueError("available_actions contains duplicates.")
