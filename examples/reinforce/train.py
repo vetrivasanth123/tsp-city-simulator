@@ -195,7 +195,16 @@ def train_reinforce(
                 f"Entropy: {mean_entropy:.4f}",
                 flush=True,
             )
+        print("\n========== TRAINING SUMMARY ==========")
+
+        for entry in history:
+            print(
+                f"Episode {entry['episode']:4d} | "
+                f"Cost: {entry['total_cost']:9.4f} | "
+                f"Return: {entry['total_reward']:9.4f}"
+            )
         
+        print("======================================\n", flush=True)
 
     return policy, history
 
