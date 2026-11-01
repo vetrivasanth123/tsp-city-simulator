@@ -18,6 +18,20 @@ def reinforce_update(
     optimizer: Optimizer,
     gamma: float = 1.0,
 ) -> dict[str, float]:
+    """Perform one textbook REINFORCE update over a completed episode.
+
+    Each recorded decision gets its own parameter update, in chronological
+    order. Returns are calculated from the episode's rewards.
+
+    Args:
+        policy: The trainable policy defined in policy.py.
+        trajectory: The completed episode recorded by trajectory.py.
+        optimizer: A persistent PyTorch optimizer for the policy parameters.
+        gamma: Discount factor in the range [0, 1].
+
+    Returns:
+        Basic training diagnostics: mean loss and number of updates.
+    """
 
     gamma = float(gamma)
 
@@ -37,170 +51,241 @@ def reinforce_update(
     ):
         raise ValueError("Trajectory data lists have inconsistent lengths.")
 
+    # File 3: calculate the return for each decision.
     returns = calculate_returns(trajectory.rewards, gamma)
 
     if not all(math.isfinite(float(r)) for r in returns):
         raise FloatingPointError("Non-finite episode returns")
-
-    # TEMPORARY DIAGNOSTIC:
-    # Optimal decisions for the known five-city instance,
-    # with fixed start city 0 and best tour 0 -> 3 -> 2 -> 1 -> 4 -> 0.
-    optimal_action_by_state = {
-        (0, (0,)): 3,
-        (3, (0, 3)): 2,
-        (2, (0, 2, 3)): 1,
-    }
-
+    
     losses = []
+    # ========================================================
+    # DEBUG CODE 1 ENDED
+    # ========================================================
 
-    # Textbook REINFORCE: one update per decision, chronologically.
+    # Textbook REINFORCE: update once per decision, in chronological order.
     for t in range(num_steps):
-
         observation = trajectory.observations[t]
         available_actions = trajectory.available_actions[t]
         intended_action = trajectory.intended_actions[t]
         G_t = returns[t]
 
-        # Identify whether this is a prefix of the known optimal tour.
-        current_city = int(observation["current_city"])
-        visited = tuple(
-            np.flatnonzero(
-                np.asarray(observation["visited_mask"], dtype=bool)
-            ).tolist()
-        )
+        
+        # TEMPORARY DIAGNOSTIC 1: check parameters before log_prob.
+        for name, parameter in policy.named_parameters():
+            if not torch.isfinite(parameter).all():
+                raise FloatingPointError(
+                    f"Non-finite parameter before log_prob at timestep {t}: {name}"
+                )   
 
-        state_key = (current_city, visited)
-        optimal_action = optimal_action_by_state.get(state_key)
+            # TEMPORARY: detect parameters that are finite but exploding.
+            max_abs = parameter.detach().abs().max().item()
 
-        # Probability distribution BEFORE this decision's update.
-        distribution_before = policy.get_distribution(
-            observation, available_actions
-        )
+            if max_abs > 1e6:
+                print(f"\n[WARNING] Very large parameter at timestep {t}")
+                print("Parameter:", name)
+                print("Maximum absolute value:", max_abs)
 
-        probs_before = distribution_before.probs.detach()
-
-        if not torch.isfinite(probs_before).all():
-            raise FloatingPointError(
-                f"Non-finite action probabilities at timestep {t}"
-            )
-
-        selected_probability_before = float(
-            probs_before[intended_action].item()
-        )
-
-        optimal_probability_before = None
-
-        if optimal_action is not None:
-            optimal_probability_before = float(
-                probs_before[optimal_action].item()
-            )
-
-        # Calculate log probability of the sampled/intended action.
+        # File 1: calculate log pi_theta(A_t | S_t).
         log_prob = policy.log_probability(
             observation,
             available_actions,
             intended_action,
         )
-
         if not torch.isfinite(log_prob).all():
             raise FloatingPointError(
                 f"Non-finite log probability at timestep {t}"
             )
-
-        # Keep the existing textbook objective unchanged.
+        
+        selected_action_probability = float(log_prob.detach().exp().item())
+        # ========================================================
+        # DIAGNOSTIC: SELECTED ACTION PROBABILITY
+        # ========================================================
+        
+                
+        # TEMPORARY DIAGNOSTIC 2: check log probability.
+        if not torch.isfinite(log_prob).all():
+            print(f"\n[FAIL] Invalid log probability at timestep {t}")
+            print("Available actions:", available_actions)
+            print("Intended action:", intended_action)
+            print("Return G_t:", float(G_t))
+            print("Log probability:", log_prob.detach().cpu())
+            raise FloatingPointError(
+                f"Invalid log probability at timestep {t}"
+            )
+        
+    
+        # TEMPORARY DIAGNOSTIC: ACTION GRADIENT SIGNAL
+        with torch.no_grad():
+            dist_before = policy.get_distribution(
+                observation, available_actions
+            )
+            probs_before = dist_before.probs.detach().cpu().numpy()
+        
+        # END TEMPORARY DIAGNOSTIC
+        # PyTorch minimizes losses, so negate the policy-gradient objective.
         loss = -(gamma ** t) * G_t * log_prob
 
+        
+        # TEMPORARY DIAGNOSTIC 3: check loss.
         if not torch.isfinite(loss).all():
+            print(f"\n[FAIL] Invalid loss at timestep {t}")
+            print("Return G_t:", float(G_t))
+            print("Log probability:", float(log_prob.detach()))
+            print("Loss:", float(loss.detach()))
             raise FloatingPointError(
-                f"Non-finite loss at timestep {t}"
+                f"Invalid loss at timestep {t}"
             )
+
 
         optimizer.zero_grad()
         loss.backward()
-
-        # TEMPORARY DIAGNOSTIC: gradient magnitude.
+        
         gradient_norm_squared = 0.0
-
+        max_gradient = 0.0
+        
         for name, parameter in policy.named_parameters():
             if parameter.grad is not None:
-
-                if not torch.isfinite(parameter.grad).all():
+                grad = parameter.grad.detach()
+        
+                if not torch.isfinite(grad).all():
                     raise FloatingPointError(
                         f"Non-finite gradient at timestep {t}: {name}"
                     )
-
+        
                 gradient_norm_squared += (
-                    torch.linalg.vector_norm(parameter.grad).item() ** 2
+                    torch.linalg.vector_norm(grad).item() ** 2
                 )
+                max_gradient = max(
+                    max_gradient,
+                    grad.abs().max().item(),
+                )
+        
+        global_gradient_norm = math.sqrt(gradient_norm_squared)
 
-        gradient_norm = math.sqrt(gradient_norm_squared)
+        # ====================================================
+        # DEBUG CODE 3 ENDED
+        # ====================================================
 
-        # Save parameters only to measure the actual update magnitude.
+        # ========================================================
+        # DIAGNOSTIC: PARAMETERS BEFORE UPDATE
+        # ========================================================
+        
         parameters_before = {
             name: parameter.detach().clone()
             for name, parameter in policy.named_parameters()
         }
 
+        # ====================================================
+        # DEBUG CODE 4 ENDED
+        # ====================================================
+        # TEMPORARY DIAGNOSTIC: PER-ACTION LOGIT GRADIENT
+        if hasattr(policy, "linear"):
+            output_layer = policy.linear
+        elif hasattr(policy, "network"):
+            output_layer = policy.network[-1]
+        else:
+            output_layer = None
+        
+        if output_layer is not None and output_layer.bias.grad is not None:
+            print(
+                f"[GRADIENT SIGNAL] t={t} | "
+                f"action={intended_action} | "
+                f"G={float(G_t):.4f} | "
+                f"probabilities={np.round(probs_before, 4)} | "
+                f"logit_bias_grad={output_layer.bias.grad.detach().cpu().numpy()}"
+            )
+        # END TEMPORARY DIAGNOSTIC
         optimizer.step()
 
-        # Probability distribution AFTER this decision's update,
-        # evaluated at exactly the same state and legal-action mask.
+        # DIAGNOSTIC: probability of the SAME state-action pair after update
         with torch.no_grad():
-
             distribution_after = policy.get_distribution(
-                observation, available_actions
+                observation,
+                available_actions,
             )
 
-            probs_after = distribution_after.probs
-
-            selected_probability_after = float(
-                probs_after[intended_action].item()
-            )
-
-            optimal_probability_after = None
-
-            if optimal_action is not None:
-                optimal_probability_after = float(
-                    probs_after[optimal_action].item()
+            action_index = int(intended_action)
+            if not 0 <= action_index < distribution_after.probs.numel():
+                raise ValueError(
+                    f"Action index {action_index} outside probability vector "
+                    f"of size {distribution_after.probs.numel()}"
                 )
+            probability_after = float(
+                distribution_after.probs[action_index].item()
+            )
 
-        # TEMPORARY DIAGNOSTIC: actual parameter-update magnitude.
+        print(
+            f"[ACTION PROBABILITY CHANGE] "
+            f"t={t} | "
+            f"before={selected_action_probability:.8f} | "
+            f"after={probability_after:.8f} | "
+            f"change={probability_after - selected_action_probability:+.8f}"
+        )
+
+        # ========================================================
+        # DIAGNOSTIC: ACTUAL PARAMETER UPDATE MAGNITUDE
+        # ========================================================
+        
         update_norm_squared = 0.0
-
+        maximum_parameter_update = 0.0
+        maximum_parameter = 0.0
+        
         for name, parameter in policy.named_parameters():
-
-            delta = parameter.detach() - parameters_before[name]
-
+            before = parameters_before[name]
+            after = parameter.detach()
+        
+            delta = after - before
+        
             update_norm_squared += (
                 torch.linalg.vector_norm(delta).item() ** 2
             )
+        
+            maximum_parameter_update = max(
+                maximum_parameter_update,
+                delta.abs().max().item(),
+            )
+        
+            maximum_parameter = max(
+                maximum_parameter,
+                after.abs().max().item(),
+            )
+        
+        global_update_norm = math.sqrt(update_norm_squared)
+        # ====================================================
+        # DEBUG CODE 5 ENDED
+        # ====================================================
+        
 
-        update_norm = math.sqrt(update_norm_squared)
-
-        # Print sampled-action and optimal-action probabilities separately.
+        # ========================================================
+        # DIAGNOSTIC: COMPACT PER-STEP UPDATE SUMMARY
+        # ========================================================
+        
         print(
-            f"[REINFORCE CHECK] "
-            f"t={t} | state={state_key} | "
-            f"sampled={intended_action} | "
+            f"[STEP {t:02d}] "
             f"G={float(G_t):.4f} | "
-            f"P(sampled): "
-            f"{selected_probability_before:.6f} -> "
-            f"{selected_probability_after:.6f} | "
-            f"grad={gradient_norm:.4e} | "
-            f"update={update_norm:.4e}",
+            f"gamma^t={gamma ** t:.4f} | "
+            f"logP={float(log_prob.detach()):.4f} | "
+            f"P(action)={selected_action_probability:.4f} | "
+            f"grad={global_gradient_norm:.4e} | "
+            f"update={global_update_norm:.4e} | "
+            f"max|theta|={maximum_parameter:.4e}",
             flush=True,
         )
+        # TEMPORARY DIAGNOSTIC 5: check parameters after update.
+        for name, parameter in policy.named_parameters():
+            if not torch.isfinite(parameter).all():
+                print(f"\n[FAIL] Non-finite parameter AFTER optimizer.step()")
+                print("Timestep:", t)
+                print("Parameter:", name)
+                print("NaN:", torch.isnan(parameter).sum().item())
+                print("+Inf:", torch.isposinf(parameter).sum().item())
+                print("-Inf:", torch.isneginf(parameter).sum().item())
+                print("Return G_t:", float(G_t))
+                print("Loss:", float(loss.detach()))
+                raise FloatingPointError(
+                    f"Non-finite parameter after update at timestep {t}"
+                )
 
-        if optimal_action is not None:
-            print(
-                f"[OPTIMAL ACTION CHECK] "
-                f"t={t} | "
-                f"optimal_action={optimal_action} | "
-                f"P(optimal): "
-                f"{optimal_probability_before:.6f} -> "
-                f"{optimal_probability_after:.6f}",
-                flush=True,
-            )
 
         losses.append(float(loss.detach().item()))
 
