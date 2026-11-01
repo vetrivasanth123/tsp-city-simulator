@@ -188,7 +188,7 @@ def train_reinforce(
         if should_log:
             print(
                 f"Policy: {policy_type} | "
-                f"Episode {episode:4d}/{num_episodes} | "
+                f"Episode {episode:4d}/{config.num_episodes} | "
                 f"Cost: {total_cost:9.4f} | "
                 f"Return μ: {return_mean:9.4f} | "
                 f"Return σ: {return_std:9.4f} | "
