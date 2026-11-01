@@ -187,9 +187,12 @@ def train_reinforce(
         
         if should_log:
             print(
-                f"Policy: {policy_type} | "
+                f"Policy: {policy_type:<6} | "
                 f"Episode {episode:4d}/{config.num_episodes} | "
                 f"Cost: {total_cost:9.4f} | "
+                f"Reward: {total_reward:9.4f} | "
+                f"Mean loss: {mean_loss:9.4f} | "
+                f"Updates: {num_updates} | "
                 f"Return μ: {return_mean:9.4f} | "
                 f"Return σ: {return_std:9.4f} | "
                 f"Entropy: {mean_entropy:.4f}",
@@ -199,9 +202,15 @@ def train_reinforce(
 
         for entry in history:
             print(
+                f"Policy: {policy_type:<6} | "
                 f"Episode {entry['episode']:4d} | "
                 f"Cost: {entry['total_cost']:9.4f} | "
-                f"Return: {entry['total_reward']:9.4f}"
+                f"Reward: {entry['total_reward']:9.4f} | "
+                f"Mean loss: {entry['mean_loss']:9.4f} | "
+                f"Updates: {entry['num_updates']} | "
+                f"Return μ: {entry['return_mean']:9.4f} | "
+                f"Return σ: {entry['return_std']:9.4f} | "
+                f"Entropy: {entry['mean_entropy']:.4f}"
             )
         
         print("======================================\n", flush=True)
