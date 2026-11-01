@@ -75,7 +75,7 @@ class TSPEnv(gym.Env):
                 step_cost = 0.0
 
             self.total_cost += step_cost
-            reward = 100 -step_cost
+            reward =-step_cost
 
             return (
                 self._observation(state),
@@ -108,7 +108,7 @@ class TSPEnv(gym.Env):
         step_cost = transition_step_cost + internal_step_cost
         
         self.total_cost += step_cost
-        reward = 100 -step_cost
+        reward =-step_cost
 
         info = self._info(state)
         info["transition"] = state["transition_info"]
