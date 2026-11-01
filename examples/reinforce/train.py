@@ -79,20 +79,20 @@ def train_reinforce(
         lr=config.learning_rate,
     )
     
-        history: list[dict[str, int | float]] = []
+    history: list[dict[str, int | float]] = []
     
-        print("\n========== TRAINING CONFIG DEBUG ==========")
-        print(f"num_episodes : {config.num_episodes}")
-        print(f"log_interval : {config.log_interval}")
-        print(f"learning_rate: {config.learning_rate}")
-        print(f"seed         : {config.seed}")
-        print("===========================================\n", flush=True)
+    print("\n========== TRAINING CONFIG DEBUG ==========")
+    print(f"num_episodes : {config.num_episodes}")
+    print(f"log_interval : {config.log_interval}")
+    print(f"learning_rate: {config.learning_rate}")
+    print(f"seed         : {config.seed}")
+    print("===========================================\n", flush=True)
     
-        for episode in range(1, config.num_episodes + 1):
+    for episode in range(1, config.num_episodes + 1):
     
-            observation, info = env.reset(start_city=start_city)
-            trajectory = EpisodeTrajectory()
-            terminated = False
+        observation, info = env.reset(start_city=start_city)
+        trajectory = EpisodeTrajectory()
+        terminated = False
         # ============================================================
         # DIAGNOSTIC: POLICY ENTROPY DURING EPISODE GENERATION
         # ============================================================
