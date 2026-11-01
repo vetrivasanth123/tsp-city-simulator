@@ -69,26 +69,30 @@ def train_reinforce(
                 # ============================================================
                 # END TEMPORARY DIAGNOSTIC
                 # ============================================================
-                
-    optimizer = torch.optim.SGD(
-        policy.parameters(),
-        lr=config.learning_rate,
-    )
 
-    history: list[dict[str, int | float]] = []
-
-    print("\n========== TRAINING CONFIG DEBUG ==========")
-    print(f"num_episodes : {config.num_episodes}")
-    print(f"log_interval : {config.log_interval}")
-    print(f"learning_rate: {config.learning_rate}")
-    print(f"seed         : {config.seed}")
-    print("===========================================\n", flush=True)
-
-    for episode in range(1, config.num_episodes + 1):
-
-        observation, info = env.reset(start_city=start_city)
-        trajectory = EpisodeTrajectory()
-        terminated = False
+    # TEMPORARY DIAGNOSTIC: save initial policy parameters
+    import copy
+    initial_policy_state = copy.deepcopy(policy.state_dict())
+    # END TEMPORARY DIAGNOSTIC            
+        optimizer = torch.optim.SGD(
+            policy.parameters(),
+            lr=config.learning_rate,
+        )
+    
+        history: list[dict[str, int | float]] = []
+    
+        print("\n========== TRAINING CONFIG DEBUG ==========")
+        print(f"num_episodes : {config.num_episodes}")
+        print(f"log_interval : {config.log_interval}")
+        print(f"learning_rate: {config.learning_rate}")
+        print(f"seed         : {config.seed}")
+        print("===========================================\n", flush=True)
+    
+        for episode in range(1, config.num_episodes + 1):
+    
+            observation, info = env.reset(start_city=start_city)
+            trajectory = EpisodeTrajectory()
+            terminated = False
         # ============================================================
         # DIAGNOSTIC: POLICY ENTROPY DURING EPISODE GENERATION
         # ============================================================
@@ -250,7 +254,9 @@ def train_reinforce(
         )
         
     print("======================================\n", flush=True)            
-
+    # TEMPORARY DIAGNOSTIC: attach initial parameters for comparison
+    policy.initial_policy_state = initial_policy_state
+    # END TEMPORARY DIAGNOSTIC
     return policy, history
 
 
