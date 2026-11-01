@@ -105,6 +105,13 @@ def train_reinforce(
                 observation,
                 available_actions,
             )
+            if not available_actions:
+                print("\n[EMPTY ACTIONS]")
+                print("Episode:", episode)
+                print("Observation:", observation)
+                print("Terminated:", terminated if "terminated" in locals() else "not tracked")
+                print("Available actions:", available_actions)
+                raise ValueError("Empty available_actions received during training.")
             
             # Exclude forced decisions (only one legal action).
             if len(available_actions) > 1:
