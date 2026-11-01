@@ -26,7 +26,7 @@ class TSPEnv(gym.Env):
         # "transition"       : transition cost only
         # "current_internal" : transition + current city internal cost
         # "next_internal"    : transition + destination city internal cost
-        self.reward_mode = "transition"
+        self.reward_mode = "next_internal"
 
         n = instance.num_cities
 
