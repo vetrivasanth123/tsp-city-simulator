@@ -109,7 +109,112 @@ def main():
         start_city=start_city,
         policy_type=args.policy,
     )
+    # TEMPORARY DIAGNOSTIC: enumerate all 24 policy tours
 
+    import itertools
+    import numpy as np
+    import torch
+    
+    num_cities = instance.num_cities
+    other_cities = [c for c in range(num_cities) if c != start_city]
+    
+    results = []
+    
+    # Keep policy parameters unchanged during evaluation.
+    was_training = policy.training
+    policy.eval()
+    
+    try:
+        with torch.no_grad():
+            for perm in itertools.permutations(other_cities):
+    
+                route = [start_city] + list(perm)
+                visited = np.zeros(num_cities, dtype=np.float32)
+                visited[start_city] = 1.0
+    
+                route_probability = 1.0
+    
+                for next_city in perm:
+    
+                    observation = {
+                        "current_city": route[route.index(next_city) - 1],
+                        "visited_mask": visited.copy(),
+                    }
+    
+                    available_actions = [
+                        c for c in range(num_cities)
+                        if visited[c] == 0
+                    ]
+    
+                    distribution = policy.get_distribution(
+                        observation,
+                        available_actions,
+                    )
+    
+                    route_probability *= float(
+                        distribution.probs[next_city].item()
+                    )
+    
+                    visited[next_city] = 1.0
+    
+                # CLOSE is forced after all cities have been visited.
+                results.append({
+                    "tour": route + [start_city],
+                    "probability": route_probability,
+                })
+    
+    finally:
+        policy.train(was_training)
+    
+    # Calculate the cost of each route using the project's cost functions.
+    for item in results:
+        route = item["tour"]
+    
+        transition_total = sum(
+            transition_cost(instance, a, b)
+            for a, b in zip(route[:-1], route[1:])
+        )
+    
+        internal_total = sum(
+            city_internal_cost(instance, c)
+            for c in range(num_cities)
+        )
+    
+        item["cost"] = transition_total + internal_total
+    
+    probability_sum = sum(x["probability"] for x in results)
+    
+    expected_cost = sum(
+        x["probability"] * x["cost"] for x in results
+    )
+    
+    uniform_expected_cost = sum(
+        x["cost"] for x in results
+    ) / len(results)
+    
+    results.sort(key=lambda x: x["probability"], reverse=True)
+    
+    print("\n========== EXACT POLICY DIAGNOSTIC ==========")
+    print("Number of tours:", len(results))
+    print("Probability sum:", probability_sum)
+    print("Policy expected tour cost:", expected_cost)
+    print("Uniform-policy expected tour cost:", uniform_expected_cost)
+    
+    print("\nTop 10 tours by policy probability:")
+    for item in results[:10]:
+        print(
+            f"Tour: {item['tour']} | "
+            f"Probability: {item['probability']:.6f} | "
+            f"Cost: {item['cost']:.4f}"
+        )
+    
+    print("\nBest possible tour:")
+    best = min(results, key=lambda x: x["cost"])
+    print(best)
+    
+    print("==============================================")
+    
+    # END TEMPORARY DIAGNOSTIC
     # 3. Evaluate the trained policy without updating its parameters.
     evaluation = evaluate_policy(
         env=env,
