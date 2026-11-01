@@ -181,7 +181,11 @@ def reinforce_update(
             )
 
             action_index = int(intended_action)
-
+            if not 0 <= action_index < distribution_after.probs.numel():
+                raise ValueError(
+                    f"Action index {action_index} outside probability vector "
+                    f"of size {distribution_after.probs.numel()}"
+                )
             probability_after = float(
                 distribution_after.probs[action_index].item()
             )
