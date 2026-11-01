@@ -219,8 +219,6 @@ def train_reinforce(
         
         print("======================================\n", flush=True)
 
-return policy, history
-
     return policy, history
 
 
