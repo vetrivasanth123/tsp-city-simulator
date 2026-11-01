@@ -84,7 +84,7 @@ def evaluate_policy(
                     )
 
                 episode_returns.append(total_return)
-                episode_costs.append(float(info["total_cost"]))
+                episode_costs.append(-total_return)
 
     finally:
         # Restore the policy's previous training/evaluation mode.
