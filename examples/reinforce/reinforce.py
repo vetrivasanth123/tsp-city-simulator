@@ -38,19 +38,6 @@ def reinforce_update(
         raise ValueError("gamma must be finite and between 0 and 1.")
 
     num_steps = len(trajectory)
-    
-    # ========================================================
-    # DIAGNOSTIC: VERIFY OPTIMIZER SETTINGS ONCE
-    # ========================================================
-    
-    if not hasattr(policy, "_optimizer_verified"):
-        print(
-            f"[OPTIMIZER] {type(optimizer).__name__} | "
-            f"Learning rate: {optimizer.param_groups[0]['lr']}"
-        )
-        policy._optimizer_verified = True
-
-    # ========================================================
 
     if num_steps == 0:
         raise ValueError("Cannot update the policy from an empty episode.")
@@ -66,15 +53,10 @@ def reinforce_update(
     # File 3: calculate the return for each decision.
     returns = calculate_returns(trajectory.rewards, gamma)
 
-    losses = []
-    # ========================================================
-    # DIAGNOSTIC: RETURN SCALE
-    # ========================================================
-    
-    return_abs_max = max(abs(float(r)) for r in returns)
-    
     if not all(math.isfinite(float(r)) for r in returns):
         raise FloatingPointError("Non-finite episode returns")
+    
+    losses = []
     # ========================================================
     # DEBUG CODE 1 ENDED
     # ========================================================
@@ -90,15 +72,9 @@ def reinforce_update(
         # TEMPORARY DIAGNOSTIC 1: check parameters before log_prob.
         for name, parameter in policy.named_parameters():
             if not torch.isfinite(parameter).all():
-                print(f"\n[FAIL] Non-finite parameter BEFORE log_prob")
-                print("Timestep:", t)
-                print("Parameter:", name)
-                print("NaN:", torch.isnan(parameter).sum().item())
-                print("+Inf:", torch.isposinf(parameter).sum().item())
-                print("-Inf:", torch.isneginf(parameter).sum().item())
                 raise FloatingPointError(
-                    f"Non-finite parameter before log_prob at timestep {t}"
-                )
+                    f"Non-finite parameter before log_prob at timestep {t}: {name}"
+                )   
 
             # TEMPORARY: detect parameters that are finite but exploding.
             max_abs = parameter.detach().abs().max().item()
@@ -114,11 +90,16 @@ def reinforce_update(
             available_actions,
             intended_action,
         )
+        if not torch.isfinite(log_prob).all():
+            raise FloatingPointError(
+                f"Non-finite log probability at timestep {t}"
+            )
+        
+        selected_action_probability = float(log_prob.detach().exp().item())
         # ========================================================
         # DIAGNOSTIC: SELECTED ACTION PROBABILITY
         # ========================================================
         
-        selected_action_probability = float(log_prob.detach().exp().item())
                 
         # TEMPORARY DIAGNOSTIC 2: check log probability.
         if not torch.isfinite(log_prob).all():
@@ -150,26 +131,6 @@ def reinforce_update(
 
         optimizer.zero_grad()
         loss.backward()
-        
-        # TEMPORARY DIAGNOSTIC 4: check gradients before update.
-        for name, parameter in policy.named_parameters():
-            if parameter.grad is not None:
-                grad = parameter.grad
-                if not torch.isfinite(grad).all():
-                    print(f"\n[FAIL] Non-finite gradient at timestep {t}")
-                    print("Parameter:", name)
-                    print("NaN:", torch.isnan(grad).sum().item())
-                    print("+Inf:", torch.isposinf(grad).sum().item())
-                    print("-Inf:", torch.isneginf(grad).sum().item())
-                    print("Return G_t:", float(G_t))
-                    print("Loss:", float(loss.detach()))
-                    raise FloatingPointError(
-                        f"Non-finite gradient at timestep {t}: {name}"
-                    )
-
-        # ========================================================
-        # DIAGNOSTIC: GLOBAL GRADIENT MAGNITUDE
-        # ========================================================
         
         gradient_norm_squared = 0.0
         max_gradient = 0.0
@@ -221,26 +182,10 @@ def reinforce_update(
         maximum_parameter = 0.0
         
         for name, parameter in policy.named_parameters():
-            before = parameters_before[name]
-            after = parameter.detach()
-        
-            delta = after - before
-        
-            update_norm_squared += (
-                torch.linalg.vector_norm(delta).item() ** 2
+        if not torch.isfinite(parameter).all():
+            raise FloatingPointError(
+                f"Non-finite parameter after update at timestep {t}: {name}"
             )
-        
-            maximum_parameter_update = max(
-                maximum_parameter_update,
-                delta.abs().max().item(),
-            )
-        
-            maximum_parameter = max(
-                maximum_parameter,
-                after.abs().max().item(),
-            )
-        
-        global_update_norm = math.sqrt(update_norm_squared)
         # ====================================================
         # DEBUG CODE 5 ENDED
         # ====================================================
