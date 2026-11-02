@@ -12,6 +12,10 @@ from .policy import SoftmaxPolicy, MLPSoftmaxPolicy
 from .trajectory import EpisodeTrajectory
 from .reinforce import reinforce_update
 from .returns import calculate_returns
+from .reinforce import (
+    reinforce_update,
+    reinforce_direct_update,
+)
 
 
 def train_reinforce(
