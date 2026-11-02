@@ -10,11 +10,8 @@ from tsp.env import TSPEnv
 from .config import ReinforceConfig
 from .policy import SoftmaxPolicy, MLPSoftmaxPolicy
 from .trajectory import EpisodeTrajectory
+from .reinforce import reinforce_update
 from .returns import calculate_returns
-from .reinforce import (
-    reinforce_update,
-    reinforce_direct_update,
-)
 
 
 def train_reinforce(
@@ -22,7 +19,6 @@ def train_reinforce(
     config: ReinforceConfig,
     start_city: int,
     policy_type: str = "linear",
-    reinforce_direct: bool = False,
 ) -> tuple[SoftmaxPolicy | MLPSoftmaxPolicy, list[dict[str, int | float]]]:
     """Train a selected policy architecture using REINFORCE."""
 
@@ -190,20 +186,12 @@ def train_reinforce(
         # ============================================================
 
         # Keep the existing sequential REINFORCE update unchanged.
-        if reinforce_direct:
-            diagnostics = reinforce_direct_update(
-                policy=policy,
-                trajectory=trajectory,
-                optimizer=optimizer,
-                gamma=config.gamma,
-            )
-        else:
-            diagnostics = reinforce_update(
-                policy=policy,
-                trajectory=trajectory,
-                optimizer=optimizer,
-                gamma=config.gamma,
-            )
+        diagnostics = reinforce_update(
+            policy=policy,
+            trajectory=trajectory,
+            optimizer=optimizer,
+            gamma=config.gamma,
+        )
 
         # ============================================================
         # DIAGNOSTIC: EPISODE RETURN STATISTICS
@@ -287,5 +275,3 @@ def train_reinforce(
     # END TEMPORARY DIAGNOSTIC
 
     return policy, history
-
-
