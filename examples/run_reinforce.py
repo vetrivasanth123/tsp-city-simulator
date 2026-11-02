@@ -56,6 +56,11 @@ def main():
     parser.add_argument("--eval-episodes", type=int, default=30)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--gamma", type=float, default=1.0)
+    parser.add_argument(
+        "--reinforce-direct",
+        action="store_true",
+        help="Use temporary direct-gradient REINFORCE update.",
+    )
 
     args = parser.parse_args()
 
@@ -108,6 +113,7 @@ def main():
         config=config,
         start_city=start_city,
         policy_type=args.policy,
+        reinforce_direct=args.reinforce_direct,
     )
     
     # ============================================================
