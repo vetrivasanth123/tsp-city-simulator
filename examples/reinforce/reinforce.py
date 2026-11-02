@@ -295,28 +295,16 @@ def reinforce_update(
     }
 
 
-def reinforce_direct_update(
-    policy,
-    trajectory: EpisodeTrajectory,
-    optimizer: Optimizer,
-    gamma: float = 1.0,
-) -> dict[str, float]:
-    """Accumulate the complete episode policy gradient and update once.
+def reinforce_direct_update(policy, trajectory, optimizer, gamma=1.0):
 
-    This implementation does not construct a loss function.
-    It accumulates the gradients of the negative REINFORCE objective
-    and performs one optimizer update after the complete episode.
-    """
+    # Validate gamma
+    if not 0.0 <= gamma <= 1.0:
+        raise ValueError("gamma must be between 0 and 1")
 
-    gamma = float(gamma)
-
-    if not math.isfinite(gamma) or not 0.0 <= gamma <= 1.0:
-        raise ValueError("gamma must be finite and between 0 and 1.")
-
-    num_steps = len(trajectory)
+    num_steps = len(trajectory.rewards)
 
     if num_steps == 0:
-        raise ValueError("Cannot update from an empty episode.")
+        raise ValueError("Empty trajectory")
 
     if not (
         len(trajectory.observations)
@@ -324,85 +312,48 @@ def reinforce_direct_update(
         == len(trajectory.intended_actions)
         == len(trajectory.rewards)
     ):
-        raise ValueError("Trajectory data lists have inconsistent lengths.")
+        raise ValueError("Trajectory lengths do not match")
 
-    returns = calculate_returns(trajectory.rewards, gamma)
-
-    if not all(math.isfinite(float(r)) for r in returns):
-        raise FloatingPointError("Non-finite episode returns.")
-
-    # Clear gradients once, before accumulating the episode gradient.
-    optimizer.zero_grad()
+    # Calculate discounted returns
+    returns = calculate_returns(
+        trajectory.rewards,
+        gamma
+    )
 
     numerical_losses = []
 
+    # Sequential direct-gradient updates
     for t in range(num_steps):
 
-        observation = trajectory.observations[t]
-        available_actions = trajectory.available_actions[t]
-        intended_action = trajectory.intended_actions[t]
-        G_t = float(returns[t])
-
         log_prob = policy.log_probability(
-            observation,
-            available_actions,
-            intended_action,
+            trajectory.observations[t],
+            trajectory.available_actions[t],
+            trajectory.intended_actions[t]
         )
 
-        if not torch.isfinite(log_prob).all():
-            raise FloatingPointError(
-                f"Non-finite log probability at timestep {t}."
-            )
+        weight = (gamma ** t) * float(returns[t])
 
-        # Preserve the exact weighting used by the existing implementation.
-        weight = (gamma ** t) * G_t
+        # Clear previous timestep's gradients
+        optimizer.zero_grad()
 
-        # Numerically record the equivalent loss for comparison.
-        numerical_losses.append(
-            -weight * float(log_prob.detach().item())
-        )
-
-        # Direct gradient accumulation:
-        #
-        # d(-weight * log_prob)/d(theta)
-        #       = -weight * d(log_prob)/d(theta)
-        #
-        # No loss tensor is constructed.
+        # Directly accumulate the score-function gradient
         log_prob.backward(
             gradient=torch.tensor(
                 -weight,
                 dtype=log_prob.dtype,
-                device=log_prob.device,
+                device=log_prob.device
             )
         )
 
-    # All gradients now represent the complete episode objective.
-    gradient_norm_squared = 0.0
+        # Update parameters immediately
+        optimizer.step()
 
-    for name, parameter in policy.named_parameters():
-
-        if parameter.grad is not None:
-
-            if not torch.isfinite(parameter.grad).all():
-                raise FloatingPointError(
-                    f"Non-finite accumulated gradient: {name}"
-                )
-
-            gradient_norm_squared += (
-                torch.linalg.vector_norm(parameter.grad).item() ** 2
-            )
-
-    gradient_norm = math.sqrt(gradient_norm_squared)
-
-    if not math.isfinite(gradient_norm):
-        raise FloatingPointError("Non-finite accumulated gradient norm.")
-
-    # One update after the complete episode.
-    optimizer.step()
+        numerical_losses.append(
+            -weight * float(log_prob.detach().item())
+        )
 
     return {
-        "mean_loss": sum(numerical_losses) / len(numerical_losses),
-        "num_updates": 1.0,
-        "gradient_norm": gradient_norm,
+        "mean_loss": sum(numerical_losses) / num_steps,
+        "num_updates": float(num_steps)
     }
 
