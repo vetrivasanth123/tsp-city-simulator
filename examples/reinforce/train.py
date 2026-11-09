@@ -60,7 +60,12 @@ def train_reinforce(
                 num_features=policy.num_features,
                 hidden_sizes=(128, 64),
             )
-    
+    # Save initial value-function parameters before training.
+    initial_value_state = (
+        copy.deepcopy(value_function.state_dict())
+        if value_function is not None
+        else None
+    )
     # ============================================================
     # END VALUE FUNCTION INITIALIZATION
     # ============================================================
@@ -290,20 +295,21 @@ def train_reinforce(
         
     print("======================================\n", flush=True)      
 
-    # TEMPORARY DIAGNOSTIC: attach initial parameters for comparison
+    # ============================================================
+    # SAVE INITIAL AND FINAL MODEL PARAMETERS
+    # ============================================================
+    
     policy.initial_policy_state = initial_policy_state
     policy.final_policy_state = copy.deepcopy(policy.state_dict())
-    initial_value_state = (
-        copy.deepcopy(value_function.state_dict())
-        if value_function is not None
-        else None
-    )
+    
     if algorithm == "reinforce-baseline":
-        policy.initial_value_state = None
+        policy.initial_value_state = initial_value_state
         policy.final_value_state = copy.deepcopy(
             value_function.state_dict()
         )
-        policy.trained_value_function = value_function
-    # END TEMPORARY DIAGNOSTIC
+    
+    # ============================================================
+    # END DIAGNOSTIC
+    # ============================================================
 
     return policy, history
