@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import math
-
+import torch
 from .policy import BaseSoftmaxPolicy
 from .trajectory import EpisodeTrajectory
 from .returns import calculate_returns
