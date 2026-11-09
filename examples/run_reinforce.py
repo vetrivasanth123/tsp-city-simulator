@@ -21,6 +21,7 @@ import tsp.visualization as visualization
 from examples.reinforce.config import ReinforceConfig
 from examples.reinforce.train import train_reinforce
 from examples.reinforce.evaluate import evaluate_policy
+from examples.reinforce.returns import calculate_returns
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -147,6 +148,7 @@ def main():
 
     observation, info = env.reset(start_city=start_city)
     trajectory = []
+    rollout_rewards = []
     terminated = False
 
     while not terminated:
@@ -165,6 +167,7 @@ def main():
 
         if truncated:
             raise RuntimeError("The visualization episode was truncated.")
+        rollout_rewards.append(float(reward))
 
         if intended_action == env.close_action:
             # Preserve the existing runner's CLOSE record structure.
@@ -248,13 +251,23 @@ def main():
 
     simulator = env.simulator
     closed_tour = simulator.tour + [simulator.start_city]
+    rollout_returns = calculate_returns(
+        rollout_rewards,
+        config.gamma,
+    )
+    
+    if not rollout_returns:
+        raise RuntimeError("The visualization rollout produced no rewards.")
+    
+    rollout_return = float(rollout_returns[0])
+    rollout_cost = -rollout_return
 
     print("\nSaved visualization rollout")
     print("---------------------------")
     print("Start city:", simulator.start_city)
     print("Tour:", closed_tour)
-    print("Total cost:", env.total_cost)
-    print("Total reward:", sum(step["reward"] for step in trajectory))
+    print("G0 (episodic return):", rollout_return)
+    print("Gamma-weighted cost:", rollout_cost)
 
     
     print("\nInitial state")
@@ -294,9 +307,8 @@ def main():
     print("Start city:", simulator.start_city)
     print("Tour:", closed_tour)
     print("Closed:", closed_tour[0] == closed_tour[-1])
-    print("Total cost:", env.total_cost)
-    print("Total reward:", sum(step["reward"] for step in trajectory))
-
+    print("G0 (episodic return):", rollout_return)
+    print("Gamma-weighted cost:", rollout_cost)
     print("\nInternal cost details")
     print("---------------------")
     total_internal_cost = 0.0
@@ -328,7 +340,7 @@ def main():
         simulator,
         PROJECT_ROOT,
         trajectory,
-        env.total_cost,
+        rollout_cost,
     )
 
     print("\nSimulation saved:", PROJECT_ROOT / ".simulation.json")
