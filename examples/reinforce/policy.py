@@ -98,11 +98,6 @@ class BaseSoftmaxPolicy(nn.Module):
                 "Policy produced non-finite raw logits."
             )
         
-        if not torch.isfinite(logits[action_mask]).all():
-            raise FloatingPointError(
-                "Policy produced non-finite logits for legal actions."
-            )
-
         return Categorical(logits=masked_logits)
 
 
