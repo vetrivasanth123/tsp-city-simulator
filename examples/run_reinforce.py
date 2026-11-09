@@ -137,9 +137,7 @@ def main():
     print("\nEvaluation results")
     print("------------------")
     print("Estimated J(theta):", evaluation["estimated_J_theta"])
-    print("Mean episodic return (G0):", evaluation["mean_return"])
-    print("Mean gamma-weighted cost:", evaluation["mean_cost"])
-    print("Gamma-weighted cost standard deviation:", evaluation["std_cost"])
+    
 
     # 4. Generate one complete policy rollout for visualization.
     # This is one tour, not the mean evaluation result.
@@ -266,9 +264,8 @@ def main():
     print("---------------------------")
     print("Start city:", simulator.start_city)
     print("Tour:", closed_tour)
-    print("G0 (episodic return):", rollout_return)
-    print("Gamma-weighted cost:", rollout_cost)
-
+    print("Total reward:", rollout_return)
+    print("Total cost:", rollout_cost)
     
     print("\nInitial state")
     print("-------------")
