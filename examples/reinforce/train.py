@@ -11,7 +11,15 @@ from tsp.env import TSPEnv
 from .config import ReinforceConfig
 from .policy import SoftmaxPolicy, MLPSoftmaxPolicy
 from .trajectory import EpisodeTrajectory
-from .reinforce import reinforce_update
+from .reinforce import (
+    reinforce_update,
+    reinforce_baseline_update,
+)
+
+from .value_function import (
+    LinearValueFunction,
+    MLPValueFunction,
+)
 from .returns import calculate_returns
 
 
@@ -20,9 +28,13 @@ def train_reinforce(
     config: ReinforceConfig,
     start_city: int,
     policy_type: str = "linear",
-) -> tuple[SoftmaxPolicy | MLPSoftmaxPolicy, list[dict[str, int | float]]]:
+    algorithm: str = "reinforce",
+):
     """Train a selected policy architecture using REINFORCE."""
-
+    if algorithm not in {"reinforce", "reinforce-baseline"}:
+        raise ValueError(
+            "algorithm must be 'reinforce' or 'reinforce-baseline'."
+        )
     if policy_type not in {"linear", "mlp"}:
         raise ValueError(
             "policy_type must be either 'linear' or 'mlp'."
@@ -30,6 +42,28 @@ def train_reinforce(
 
     if not 0 <= start_city < env.instance.num_cities:
         raise ValueError("start_city is outside the valid range.")
+    # ============================================================
+    # INITIALIZE VALUE FUNCTION ONLY FOR REINFORCE WITH BASELINE
+    # ============================================================
+    
+    value_function = None
+    
+    if algorithm == "reinforce-baseline":
+    
+        if policy_type == "linear":
+            value_function = LinearValueFunction(
+                num_features=policy.num_features
+            )
+    
+        else:
+            value_function = MLPValueFunction(
+                num_features=policy.num_features,
+                hidden_sizes=(128, 64),
+            )
+    
+    # ============================================================
+    # END VALUE FUNCTION INITIALIZATION
+    # ============================================================
 
     # Seed training-side randomness before creating the policy.
     random.seed(config.seed)
@@ -80,6 +114,8 @@ def train_reinforce(
     print(f"num_episodes : {config.num_episodes}")
     print(f"log_interval : {config.log_interval}")
     print(f"learning_rate: {config.learning_rate}")
+    print(f"value_learning_rate: {config.value_learning_rate}")
+    print(f"algorithm    : {algorithm}")
     print(f"seed         : {config.seed}")
     print("===========================================\n", flush=True)
     
@@ -132,13 +168,33 @@ def train_reinforce(
 
             observation = next_observation
 
-        # Keep the existing sequential REINFORCE update unchanged.
-        diagnostics = reinforce_update(
-            policy=policy,
-            trajectory=trajectory,
-            step_size=config.learning_rate,
-            gamma=config.gamma,
-        )
+        # ============================================================
+        # SELECT THE POLICY UPDATE ALGORITHM
+        # ============================================================
+        
+        if algorithm == "reinforce":
+        
+            diagnostics = reinforce_update(
+                policy=policy,
+                trajectory=trajectory,
+                step_size=config.learning_rate,
+                gamma=config.gamma,
+            )
+        
+        else:
+        
+            diagnostics = reinforce_baseline_update(
+                policy=policy,
+                value_function=value_function,
+                trajectory=trajectory,
+                policy_step_size=config.learning_rate,
+                value_step_size=config.value_learning_rate,
+                gamma=config.gamma,
+            )
+        
+        # ============================================================
+        # END ALGORITHM SELECTION
+        # ============================================================
 
         # ============================================================
         # DIAGNOSTIC: EPISODE RETURN STATISTICS
@@ -168,13 +224,22 @@ def train_reinforce(
             "total_cost": total_cost,
             "mean_gradient_norm": diagnostics["mean_gradient_norm"],
             "num_updates": diagnostics["num_updates"],
-            
+        
             # Episodic objective
             "episode_return": episode_return,
-            
+        
             # Diagnostic measurement
             "policy_entropy": mean_entropy,
         }
+        
+        if algorithm == "reinforce-baseline":
+            episode_record["mean_value_gradient_norm"] = (
+                diagnostics["mean_value_gradient_norm"]
+            )
+            episode_record["mean_absolute_advantage"] = (
+                diagnostics["mean_absolute_advantage"]
+            )
+         
         history.append(episode_record)
 
         should_log = (
@@ -185,6 +250,8 @@ def train_reinforce(
         
         if should_log:
             print(
+                print(
+                f"Algorithm: {algorithm:<18} | "
                 f"Policy: {policy_type:<6} | "
                 f"Episode {episode:4d}/{config.num_episodes} | "
                 f"Cost: {total_cost:9.4f} | "
@@ -195,6 +262,14 @@ def train_reinforce(
                 f"Entropy: {mean_entropy:.4f}",
                 flush=True,
             )
+        if algorithm == "reinforce-baseline":
+            print(
+                f"Value grad norm: "
+                f"{diagnostics['mean_value_gradient_norm']:.4f} | "
+                f"Mean |Advantage|: "
+                f"{diagnostics['mean_absolute_advantage']:.4f}",
+                flush=True,
+            )           
     # FINAL TRAINING SUMMARY
     # ============================================================
         
@@ -202,6 +277,7 @@ def train_reinforce(
         
     for entry in history:
         print(
+            f"Algorithm: {algorithm:<18} | "
             f"Policy: {policy_type:<6} | "
             f"Episode {entry['episode']:4d}/{config.num_episodes} | "
             f"Cost: {entry['total_cost']:9.4f} | "
@@ -217,6 +293,17 @@ def train_reinforce(
     # TEMPORARY DIAGNOSTIC: attach initial parameters for comparison
     policy.initial_policy_state = initial_policy_state
     policy.final_policy_state = copy.deepcopy(policy.state_dict())
+    initial_value_state = (
+        copy.deepcopy(value_function.state_dict())
+        if value_function is not None
+        else None
+    )
+    if algorithm == "reinforce-baseline":
+        policy.initial_value_state = None
+        policy.final_value_state = copy.deepcopy(
+            value_function.state_dict()
+        )
+        policy.trained_value_function = value_function
     # END TEMPORARY DIAGNOSTIC
 
     return policy, history
