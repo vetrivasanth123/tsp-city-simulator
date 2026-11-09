@@ -73,11 +73,6 @@ def train_reinforce(
     import copy
     initial_policy_state = copy.deepcopy(policy.state_dict())
     # END TEMPORARY DIAGNOSTIC  
-                           
-    optimizer = torch.optim.SGD(
-        policy.parameters(),
-        lr=config.learning_rate,
-    )
     
     history: list[dict[str, int | float]] = []
     
@@ -137,59 +132,11 @@ def train_reinforce(
 
             observation = next_observation
 
-        # ============================================================
-        # TEMPORARY DIAGNOSTIC: RETURN-TO-COST RELATIONSHIP
-        # Purpose:
-        #   Compare each discounted return G_t against the actual
-        #   remaining cost from that timestep.
-        #   Does NOT modify rewards, returns, or policy updates.
-        # ============================================================
-
-        diagnostic_returns = calculate_returns(
-            trajectory.rewards,
-            config.gamma,
-        )
-        # ============================================================
-        # TEMPORARY DIAGNOSTIC: RETURN SIGN AND RELATIVE QUALITY
-        # ============================================================
-        
-        episode_total_cost = -sum(trajectory.rewards)
-        
-        print(
-            f"[LEARNING SIGNAL] "
-            f"Episode cost={episode_total_cost:.4f} | "
-            f"Mean G={np.mean(diagnostic_returns):.4f} | "
-            f"Min G={np.min(diagnostic_returns):.4f} | "
-            f"Max G={np.max(diagnostic_returns):.4f} | "
-            f"All returns negative={all(g < 0 for g in diagnostic_returns)}"
-        )
-        
-        # END TEMPORARY DIAGNOSTIC
-        print(f"\n[RETURN-COST DIAGNOSTIC] Episode {episode}")
-
-        for t, (reward_t, return_t) in enumerate(
-            zip(trajectory.rewards, diagnostic_returns)
-        ):
-            remaining_cost = -sum(trajectory.rewards[t:])
-
-            print(
-                f"t={t} | "
-                f"reward={reward_t:9.4f} | "
-                f"G_t={return_t:9.4f} | "
-                f"undiscounted_remaining_cost={remaining_cost:9.4f}"
-            )
-
-        print("================================================\n")
-
-        # ============================================================
-        # END TEMPORARY DIAGNOSTIC
-        # ============================================================
-
         # Keep the existing sequential REINFORCE update unchanged.
         diagnostics = reinforce_update(
             policy=policy,
             trajectory=trajectory,
-            optimizer=optimizer,
+            step_size=config.learning_rate,
             gamma=config.gamma,
         )
 
@@ -219,7 +166,7 @@ def train_reinforce(
             "episode": episode,
             "total_reward": total_reward,
             "total_cost": total_cost,
-            "mean_loss": diagnostics["mean_loss"],
+            "mean_gradient_norm": diagnostics["mean_gradient_norm"],
             "num_updates": diagnostics["num_updates"],
         
             # Diagnostic measurements
@@ -243,7 +190,7 @@ def train_reinforce(
                 f"Episode {episode:4d}/{config.num_episodes} | "
                 f"Cost: {total_cost:9.4f} | "
                 f"Reward: {total_reward:9.4f} | "
-                f"Mean loss: {diagnostics['mean_loss']:9.4f} | "
+                f"Mean grad norm: {diagnostics['mean_gradient_norm']:9.4f} | "
                 f"Updates: {int(diagnostics['num_updates'])} | "
                 f"Return μ: {return_mean:9.4f} | "
                 f"Return σ: {return_std:9.4f} | "
@@ -272,6 +219,7 @@ def train_reinforce(
 
     # TEMPORARY DIAGNOSTIC: attach initial parameters for comparison
     policy.initial_policy_state = initial_policy_state
+    policy.final_policy_state = copy.deepcopy(policy.state_dict())
     # END TEMPORARY DIAGNOSTIC
 
     return policy, history
