@@ -144,23 +144,23 @@ def train_reinforce(
         # DIAGNOSTIC: EPISODE RETURN STATISTICS
         # ============================================================
         
-        episode_returns = np.asarray(
-            calculate_returns(trajectory.rewards, config.gamma),
-            dtype=np.float64,
+        episode_returns = calculate_returns(
+            trajectory.rewards,
+            config.gamma,
         )
         
-        return_mean = float(np.mean(episode_returns))
-        return_std = float(np.std(episode_returns))
-        return_min = float(np.min(episode_returns))
-        return_max = float(np.max(episode_returns))
+        if not episode_returns:
+            raise RuntimeError("Training produced an empty episode.")
+        
+        episode_return = float(episode_returns[0])
         
         mean_entropy = (
             float(np.mean(episode_entropies))
             if episode_entropies
             else 0.0
         )
-        total_reward = float(sum(trajectory.rewards))
-        total_cost = -total_reward
+        total_reward = episode_return
+        total_cost = -episode_return
 
         episode_record: dict[str, int | float] = {
             "episode": episode,
@@ -168,12 +168,11 @@ def train_reinforce(
             "total_cost": total_cost,
             "mean_gradient_norm": diagnostics["mean_gradient_norm"],
             "num_updates": diagnostics["num_updates"],
-        
-            # Diagnostic measurements
-            "return_mean": return_mean,
-            "return_std": return_std,
-            "return_min": return_min,
-            "return_max": return_max,
+            
+            # Episodic objective
+            "episode_return": episode_return,
+            
+            # Diagnostic measurement
             "policy_entropy": mean_entropy,
         }
         history.append(episode_record)
@@ -192,8 +191,7 @@ def train_reinforce(
                 f"Reward: {total_reward:9.4f} | "
                 f"Mean grad norm: {diagnostics['mean_gradient_norm']:9.4f} | "
                 f"Updates: {int(diagnostics['num_updates'])} | "
-                f"Return μ: {return_mean:9.4f} | "
-                f"Return σ: {return_std:9.4f} | "
+                f"G0: {episode_return:9.4f} | "
                 f"Entropy: {mean_entropy:.4f}",
                 flush=True,
             )
@@ -210,8 +208,7 @@ def train_reinforce(
             f"Reward: {entry['total_reward']:9.4f} | "
             f"Mean grad norm: {entry['mean_gradient_norm']:9.4f} | "
             f"Updates: {int(entry['num_updates'])} | "
-            f"Return μ: {entry['return_mean']:9.4f} | "
-            f"Return σ: {entry['return_std']:9.4f} | "
+            f"G0: {entry['episode_return']:9.4f} | "
             f"Entropy: {entry['policy_entropy']:.4f}"
         )
         
