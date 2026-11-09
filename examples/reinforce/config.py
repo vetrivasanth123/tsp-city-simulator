@@ -17,16 +17,20 @@ class ReinforceConfig:
     seed: int = 42
 
     def __post_init__(self) -> None:
-        if (
-            not math.isfinite(float(self.learning_rate))
-            or self.learning_rate <= 0
-        ):
+        if isinstance(self.learning_rate, bool):
+            raise ValueError("learning_rate must be numeric.")
+
+        learning_rate = float(self.learning_rate)
+
+        if not math.isfinite(learning_rate) or learning_rate <= 0:
             raise ValueError("learning_rate must be finite and positive.")
 
-        if (
-            not math.isfinite(float(self.gamma))
-            or not 0.0 <= self.gamma <= 1.0
-        ):
+        if isinstance(self.gamma, bool):
+            raise ValueError("gamma must be numeric.")
+
+        gamma = float(self.gamma)
+
+        if not math.isfinite(gamma) or not 0.0 <= gamma <= 1.0:
             raise ValueError("gamma must be between 0 and 1.")
 
         if (
