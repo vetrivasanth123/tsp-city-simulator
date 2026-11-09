@@ -5,12 +5,12 @@ import math
 import torch
 
 from tsp.env import TSPEnv
-from .policy import SoftmaxPolicy
+from .policy import BaseSoftmaxPolicy
 
 
 def evaluate_policy(
     env: TSPEnv,
-    policy: SoftmaxPolicy,
+    policy: BaseSoftmaxPolicy,
     start_city: int,
     num_episodes: int = 30,
     seed: int = 42,
