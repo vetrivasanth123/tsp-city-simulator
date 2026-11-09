@@ -4,6 +4,7 @@ from __future__ import annotations
 import random
 import numpy as np
 import torch
+import copy
 
 from tsp.env import TSPEnv
 
@@ -70,7 +71,6 @@ def train_reinforce(
                 # END TEMPORARY DIAGNOSTIC
                 # ============================================================
     # TEMPORARY DIAGNOSTIC: save initial policy parameters
-    import copy
     initial_policy_state = copy.deepcopy(policy.state_dict())
     # END TEMPORARY DIAGNOSTIC  
     
@@ -208,7 +208,7 @@ def train_reinforce(
             f"Episode {entry['episode']:4d}/{config.num_episodes} | "
             f"Cost: {entry['total_cost']:9.4f} | "
             f"Reward: {entry['total_reward']:9.4f} | "
-            f"Mean loss: {entry['mean_loss']:9.4f} | "
+            f"Mean grad norm: {entry['mean_gradient_norm']:9.4f} | "
             f"Updates: {int(entry['num_updates'])} | "
             f"Return μ: {entry['return_mean']:9.4f} | "
             f"Return σ: {entry['return_std']:9.4f} | "
