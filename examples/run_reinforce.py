@@ -304,8 +304,8 @@ def main():
     print("Start city:", simulator.start_city)
     print("Tour:", closed_tour)
     print("Closed:", closed_tour[0] == closed_tour[-1])
-    print("G0 (episodic return):", rollout_return)
-    print("Gamma-weighted cost:", rollout_cost)
+    print("Total reward:", rollout_return)
+    print("Total cost:", rollout_cost)
     print("\nInternal cost details")
     print("---------------------")
     total_internal_cost = 0.0
