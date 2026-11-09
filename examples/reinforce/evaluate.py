@@ -6,6 +6,7 @@ import torch
 
 from tsp.env import TSPEnv
 from .policy import BaseSoftmaxPolicy
+from .returns import calculate_returns
 
 
 def evaluate_policy(
@@ -14,6 +15,7 @@ def evaluate_policy(
     start_city: int,
     num_episodes: int = 30,
     seed: int = 42,
+    gamma: float = 1.0,
 ) -> dict[str, int | float | list[float]]:
     """Estimate the episodic return objective without updating the policy."""
 
@@ -30,6 +32,14 @@ def evaluate_policy(
         or seed < 0
     ):
         raise ValueError("seed must be a non-negative integer.")
+
+    if isinstance(gamma, bool):
+        raise ValueError("gamma must be numeric, not Boolean.")
+    
+    gamma = float(gamma)
+    
+    if not math.isfinite(gamma) or not 0.0 <= gamma <= 1.0:
+        raise ValueError("gamma must be finite and between 0 and 1.")
 
     if not 0 <= start_city < env.instance.num_cities:
         raise ValueError("start_city is outside the valid city range.")
@@ -51,7 +61,7 @@ def evaluate_policy(
             for _ in range(num_episodes):
                 observation, info = env.reset(start_city=start_city)
                 terminated = False
-                total_return = 0.0
+                episode_rewards: list[float] = []
 
                 while not terminated:
                     available_actions = info["available_actions"]
@@ -75,16 +85,27 @@ def evaluate_policy(
                             "before termination."
                         )
 
-                    total_return += float(reward)
+                    episode_rewards.append(float(reward))
                     observation = next_observation
 
-                if not math.isfinite(total_return):
+                discounted_returns = calculate_returns(
+                    episode_rewards,
+                    gamma,
+                )
+                
+                if not discounted_returns:
+                    raise RuntimeError("Evaluation produced an empty episode.")
+                
+                episode_return = float(discounted_returns[0])
+                
+                if not math.isfinite(episode_return):
                     raise ValueError(
-                        "Evaluation produced a non-finite episode return."
+                        "Evaluation produced a non-finite discounted return."
                     )
-
-                episode_returns.append(total_return)
-                episode_costs.append(-total_return)
+                
+                # Textbook episodic objective: G_0
+                episode_returns.append(episode_return)
+                episode_costs.append(-episode_return)
 
     finally:
         # Restore the policy's previous training/evaluation mode.
