@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import argparse
@@ -22,19 +21,6 @@ from examples.reinforce.config import ReinforceConfig
 from examples.reinforce.train import train_reinforce
 from examples.reinforce.evaluate import evaluate_policy
 from examples.reinforce.returns import calculate_returns
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from tsp.city_generator import CityLocationGenerator
-from tsp.instance import TSPInstance
-from tsp.env import TSPEnv
-from tsp.cost import transition_cost, city_internal_cost
-import tsp.visualization as visualization
-
-from examples.reinforce.config import ReinforceConfig
-from examples.reinforce.train import train_reinforce
-from examples.reinforce.evaluate import evaluate_policy
 
 
 def main():
@@ -64,13 +50,24 @@ def main():
         default="linear",
         help="Policy architecture: linear softmax or MLP softmax.",
     )
+    parser.add_argument(
+        "--algorithm",
+        choices=["reinforce", "reinforce-baseline"],
+        default="reinforce",
+        help="Training algorithm: vanilla REINFORCE or REINFORCE with baseline.",
+    )
 
     # REINFORCE-specific settings.
     parser.add_argument("--episodes", type=int, default=500)
     parser.add_argument("--eval-episodes", type=int, default=30)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
+    parser.add_argument(
+        "--value-learning-rate",
+        type=float,
+        default=1e-3,
+        help="Learning rate for the state-value function (used only with baseline).",
+    )
     parser.add_argument("--gamma", type=float, default=1.0)
-
     args = parser.parse_args()
 
     # 1. Generate the instance using the existing project module.
@@ -102,6 +99,8 @@ def main():
     env = TSPEnv(instance)
     print("\nREINFORCE experiment")
     print("--------------------")
+    print("Algorithm:", args.algorithm)
+    print("Policy architecture:", args.policy)
     print_instance_details(instance, cities, PROJECT_ROOT)
     
     # Match the Random runner's start-city selection rule.
@@ -109,6 +108,7 @@ def main():
 
     config = ReinforceConfig(
         learning_rate=args.learning_rate,
+        value_learning_rate=args.value_learning_rate,
         gamma=args.gamma,
         num_episodes=args.episodes,
         eval_episodes=args.eval_episodes,
@@ -122,6 +122,7 @@ def main():
         config=config,
         start_city=start_city,
         policy_type=args.policy,
+        algorithm=args.algorithm,
     )
 
     # 3. Evaluate the trained policy without updating its parameters.
