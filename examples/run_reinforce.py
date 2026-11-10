@@ -96,7 +96,7 @@ def main():
     )
 
     # Keep the same environment-construction behavior as the Random runner.
-    env = TSPEnv(instance)
+    env = TSPEnv(instance, seed=args.seed)
     
     print("\nREINFORCE experiment")
     print("--------------------")
