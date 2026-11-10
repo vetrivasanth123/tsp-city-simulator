@@ -42,34 +42,7 @@ def train_reinforce(
 
     if not 0 <= start_city < env.instance.num_cities:
         raise ValueError("start_city is outside the valid range.")
-    # ============================================================
-    # INITIALIZE VALUE FUNCTION ONLY FOR REINFORCE WITH BASELINE
-    # ============================================================
     
-    value_function = None
-    
-    if algorithm == "reinforce-baseline":
-    
-        if policy_type == "linear":
-            value_function = LinearValueFunction(
-                num_features=policy.num_features
-            )
-    
-        else:
-            value_function = MLPValueFunction(
-                num_features=policy.num_features,
-                hidden_sizes=(128, 64),
-            )
-    # Save initial value-function parameters before training.
-    initial_value_state = (
-        copy.deepcopy(value_function.state_dict())
-        if value_function is not None
-        else None
-    )
-    # ============================================================
-    # END VALUE FUNCTION INITIALIZATION
-    # ============================================================
-
     # Seed training-side randomness before creating the policy.
     random.seed(config.seed)
     np.random.seed(config.seed)
@@ -111,6 +84,34 @@ def train_reinforce(
                 # ============================================================
     # TEMPORARY DIAGNOSTIC: save initial policy parameters
     initial_policy_state = copy.deepcopy(policy.state_dict())
+    # ============================================================
+    # INITIALIZE VALUE FUNCTION ONLY FOR REINFORCE WITH BASELINE
+    # ============================================================
+    
+    value_function = None
+    
+    if algorithm == "reinforce-baseline":
+    
+        if policy_type == "linear":
+            value_function = LinearValueFunction(
+                num_features=policy.num_features
+            )
+    
+        else:
+            value_function = MLPValueFunction(
+                num_features=policy.num_features,
+                hidden_sizes=(128, 64),
+            )
+    # Save initial value-function parameters before training.
+    initial_value_state = (
+        copy.deepcopy(value_function.state_dict())
+        if value_function is not None
+        else None
+    )
+    # ============================================================
+    # END VALUE FUNCTION INITIALIZATION
+    # ============================================================
+
     # END TEMPORARY DIAGNOSTIC  
     
     history: list[dict[str, int | float]] = []
