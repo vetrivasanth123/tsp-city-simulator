@@ -255,7 +255,6 @@ def train_reinforce(
         
         if should_log:
             print(
-                print(
                 f"Algorithm: {algorithm:<18} | "
                 f"Policy: {policy_type:<6} | "
                 f"Episode {episode:4d}/{config.num_episodes} | "
