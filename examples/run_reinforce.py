@@ -97,6 +97,7 @@ def main():
 
     # Keep the same environment-construction behavior as the Random runner.
     env = TSPEnv(instance)
+    
     print("\nREINFORCE experiment")
     print("--------------------")
     print("Algorithm:", args.algorithm)
@@ -330,7 +331,8 @@ def main():
                 - np.asarray(pickup, dtype=float)
             ))
             print(f"  User {user_idx} → Pickup: {distance:.6f}")
-
+            
+    print("\nInternal cost")
     print(f"Total internal cost: {total_internal_cost}")
 
 
