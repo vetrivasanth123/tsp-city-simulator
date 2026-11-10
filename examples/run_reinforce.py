@@ -304,37 +304,33 @@ def main():
                 f"{step['transition_probabilities'].get(str(step['actual_action']), 0.0):.4f}"
             )
 
-    print("\nFinal result")
-    print("------------")
-    print("Start city:", simulator.start_city)
-    print("Tour:", closed_tour)
-    print("Closed:", closed_tour[0] == closed_tour[-1])
-    print("Total reward:", total_reward)
-    print("Total tour cost:", total_cost)
+    print("\nInternal cost")
+    print("-------------")
+    
     total_internal_cost = 0.0
-
+    
     for city in cities:
         city_id = city["city_id"]
         pickup = city["pickup"]["location"]
+    
         internal_cost = city_internal_cost(instance, city_id)
         total_internal_cost += internal_cost
-
+    
         print(
             f"City {city_id} | Pickup: {pickup} | "
             f"Total internal cost: {internal_cost:.6f}"
         )
-
+    
         # Show each user's distance to the pickup point.
         for user_idx, node in enumerate(city["user_nodes"]):
             distance = float(np.linalg.norm(
                 np.asarray(node, dtype=float)
                 - np.asarray(pickup, dtype=float)
             ))
+    
             print(f"  User {user_idx} → Pickup: {distance:.6f}")
-            
-    print("\nInternal cost")
-    print("------------")
-    print(f"Total internal cost: {total_internal_cost}")
+    
+    print(f"\nTotal internal cost: {total_internal_cost}")
 
 
     # 5. Use the existing visualization serializer and schema.
@@ -343,6 +339,7 @@ def main():
         PROJECT_ROOT,
         trajectory,
         total_cost,
+        total_reward=total_reward,
     )
 
     print("\nSimulation saved:", PROJECT_ROOT / ".simulation.json")
