@@ -259,21 +259,17 @@ def main():
     if not rollout_returns:
         raise RuntimeError("The visualization rollout produced no rewards.")
     
-    # Discounted return: used for the RL objective.
-    discounted_return = float(rollout_returns[0])
-    
-    # Actual total reward and cost: undiscounted.
-    total_reward = float(sum(rollout_rewards))
-    rollout_cost = -total_reward
+    # Discounted total reward and corresponding discounted tour cost.
+    total_reward = float(rollout_returns[0])
+    total_cost = -total_reward
 
 
     print("\nSaved visualization rollout")
     print("---------------------------")
     print("Start city:", simulator.start_city)
     print("Tour:", closed_tour)
-    print("Undiscounted total reward:", total_reward)
-    print("Actual total cost:", rollout_cost)
-    print("Discounted return:", discounted_return)
+    print("Total reward:", total_reward)
+    print("Total tour cost:", total_cost)
     
     print("\nInitial state")
     print("-------------")
@@ -312,9 +308,8 @@ def main():
     print("Start city:", simulator.start_city)
     print("Tour:", closed_tour)
     print("Closed:", closed_tour[0] == closed_tour[-1])
-    print("Undiscounted total reward:", total_reward)
-    print("Actual total cost:", rollout_cost)
-    print("Discounted return:", discounted_return)
+    print("Total reward:", total_reward)
+    print("Total tour cost:", total_cost)
     total_internal_cost = 0.0
 
     for city in cities:
@@ -344,7 +339,7 @@ def main():
         simulator,
         PROJECT_ROOT,
         trajectory,
-        rollout_cost,
+        total_cost,,
     )
 
     print("\nSimulation saved:", PROJECT_ROOT / ".simulation.json")
