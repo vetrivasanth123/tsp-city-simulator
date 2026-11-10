@@ -339,7 +339,7 @@ def main():
         simulator,
         PROJECT_ROOT,
         trajectory,
-        total_cost,,
+        total_cost,
     )
 
     print("\nSimulation saved:", PROJECT_ROOT / ".simulation.json")
