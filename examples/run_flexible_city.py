@@ -59,7 +59,7 @@ def main():
         cities=cities,
     )
 
-    env = TSPEnv(instance)
+    env = TSPEnv(instance, seed=args.seed)
     rng = random.Random(args.seed)
     start_city = rng.randrange(instance.num_cities)
     obs, info = env.reset(start_city=start_city)
