@@ -333,6 +333,7 @@ def main():
             print(f"  User {user_idx} → Pickup: {distance:.6f}")
             
     print("\nInternal cost")
+    print("------------")
     print(f"Total internal cost: {total_internal_cost}")
 
 
