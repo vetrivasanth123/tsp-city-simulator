@@ -203,6 +203,9 @@ def reinforce_baseline_update(
     policy_gradient_norms = []
     value_gradient_norms = []
     absolute_advantages = []
+    # DIAGNOSTIC CODE 1: Track value-function learning
+    value_squared_errors_before = []
+    value_squared_errors_after = []
 
     # Textbook updates: chronological order.
     for t in range(num_steps):
@@ -242,6 +245,10 @@ def reinforce_baseline_update(
         delta = (
             G_t - value_estimate.detach().item()
         )
+        # DIAGNOSTIC CODE 2: Prediction error before value update
+        value_before = value_estimate.detach().item()
+        
+        squared_error_before = (G_t - value_before) ** 2
 
         if not math.isfinite(delta):
             raise FloatingPointError(
@@ -276,6 +283,15 @@ def reinforce_baseline_update(
                     gradient,
                     alpha=value_step_size * delta,
                 )
+                
+        # DIAGNOSTIC CODE 3: Prediction error after value update
+        with torch.no_grad():
+            value_after = value_function(features).item()
+        
+        squared_error_after = (G_t - value_after) ** 2
+        
+        value_squared_errors_before.append(squared_error_before)
+        value_squared_errors_after.append(squared_error_after)
 
         # --------------------------------------------------
         # 5. Policy parameter update.
@@ -344,6 +360,21 @@ def reinforce_baseline_update(
             / len(absolute_advantages)
         ),
         "num_updates": float(num_steps),
+        "mean_value_mse_before": (
+            sum(value_squared_errors_before)
+            / len(value_squared_errors_before)
+        ),
+        "mean_value_mse_after": (
+            sum(value_squared_errors_after)
+            / len(value_squared_errors_after)
+        ),
+        "value_mse_reduction": (
+            sum(value_squared_errors_before)
+            / len(value_squared_errors_before)
+            -
+            sum(value_squared_errors_after)
+            / len(value_squared_errors_after)
+        ),
     }
     
     
