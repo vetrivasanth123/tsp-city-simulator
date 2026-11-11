@@ -245,6 +245,15 @@ def train_reinforce(
             episode_record["mean_absolute_advantage"] = (
                 diagnostics["mean_absolute_advantage"]
             )
+            episode_record["mean_value_mse_before"] = (
+                diagnostics["mean_value_mse_before"]
+            )
+            episode_record["mean_value_mse_after"] = (
+                diagnostics["mean_value_mse_after"]
+            )
+            episode_record["value_mse_reduction"] = (
+                diagnostics["value_mse_reduction"]
+            )
          
         history.append(episode_record)
 
@@ -274,7 +283,15 @@ def train_reinforce(
                 f"Mean |Advantage|: "
                 f"{diagnostics['mean_absolute_advantage']:.4f}",
                 flush=True,
-            )           
+            )  
+        if algorithm == "reinforce-baseline":
+            log_message += (
+                f" | Value MSE: "
+                f"{diagnostics['mean_value_mse_before']:.3f}"
+                f" -> {diagnostics['mean_value_mse_after']:.3f}"
+                f" | Advantage: "
+                f"{diagnostics['mean_absolute_advantage']:.3f}"
+            )    
     # FINAL TRAINING SUMMARY
     # ============================================================
         
