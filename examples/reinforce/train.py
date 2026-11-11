@@ -273,24 +273,19 @@ def train_reinforce(
                 f"Mean grad norm: {diagnostics['mean_gradient_norm']:9.4f} | "
                 f"Updates: {int(diagnostics['num_updates'])} | "
                 f"G0: {episode_return:9.4f} | "
-                f"Entropy: {mean_entropy:.4f}",
+                f"Entropy: {mean_entropy:.4f}"
+                + (
+                    f" | Value MSE: "
+                    f"{diagnostics['mean_value_mse_before']:.3f}"
+                    f" -> {diagnostics['mean_value_mse_after']:.3f}"
+                    f" | Value grad norm: "
+                    f"{diagnostics['mean_value_gradient_norm']:.3f}"
+                    f" | Mean |Advantage|: "
+                    f"{diagnostics['mean_absolute_advantage']:.3f}"
+                    if algorithm == "reinforce-baseline"
+                    else ""
+                ),
                 flush=True,
-            )
-        if algorithm == "reinforce-baseline":
-            print(
-                f"Value grad norm: "
-                f"{diagnostics['mean_value_gradient_norm']:.4f} | "
-                f"Mean |Advantage|: "
-                f"{diagnostics['mean_absolute_advantage']:.4f}",
-                flush=True,
-            )  
-        if algorithm == "reinforce-baseline":
-            log_message += (
-                f" | Value MSE: "
-                f"{diagnostics['mean_value_mse_before']:.3f}"
-                f" -> {diagnostics['mean_value_mse_after']:.3f}"
-                f" | Advantage: "
-                f"{diagnostics['mean_absolute_advantage']:.3f}"
             )    
     # FINAL TRAINING SUMMARY
     # ============================================================
