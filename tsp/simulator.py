@@ -14,7 +14,7 @@ class TSPSimulator:
         self,
         instance: TSPInstance,
         seed: int | None = None,
-        kappa: float = 0.9,
+        kappa: float = 1.0,
         beta: float = 0.9,
     ) -> None:
         self.instance = instance
