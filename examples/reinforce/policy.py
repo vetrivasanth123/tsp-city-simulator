@@ -21,40 +21,26 @@ class BaseSoftmaxPolicy(nn.Module):
         self.num_actions = num_cities + 1
 
     def encode_observation(self, observation: dict) -> torch.Tensor:
-        """Encode the complete mathematical TSP state."""
-    
+        """Encode current city and visited mask."""
+
         current_city = int(observation["current_city"])
-        start_city = int(observation["start_city"])
-    
         visited_mask = np.asarray(
             observation["visited_mask"], dtype=np.float32
         ).reshape(-1)
-    
+
         if not 0 <= current_city < self.num_cities:
             raise ValueError("current_city is outside the valid range.")
-    
-        if not 0 <= start_city < self.num_cities:
-            raise ValueError("start_city is outside the valid range.")
-    
+
         if visited_mask.shape != (self.num_cities,):
             raise ValueError("visited_mask has an incorrect length.")
-    
+
         current_city_one_hot = np.zeros(
             self.num_cities, dtype=np.float32
         )
         current_city_one_hot[current_city] = 1.0
-    
-        start_city_one_hot = np.zeros(
-            self.num_cities, dtype=np.float32
-        )
-        start_city_one_hot[start_city] = 1.0
-    
+
         return torch.as_tensor(
-            np.concatenate([
-                current_city_one_hot,
-                start_city_one_hot,
-                visited_mask,
-            ]),
+            np.concatenate([current_city_one_hot, visited_mask]),
             dtype=torch.float32,
         )
 
@@ -165,7 +151,7 @@ class SoftmaxPolicy(BaseSoftmaxPolicy):
     def __init__(self, num_cities: int):
         super().__init__(num_cities)
 
-        self.num_features = 3 * num_cities
+        self.num_features = 2 * num_cities
         self.linear = nn.Linear(
             self.num_features, self.num_actions
         )
@@ -209,7 +195,7 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
             raise ValueError("hidden_sizes must contain two positive sizes.")
 
         self.start_city = start_city
-        self.num_features = num_cities**2 + 4 * num_cities
+        self.num_features = num_cities**2 + 3 * num_cities
 
         # ========================================================
         # COST MATRIX NORMALIZATION
@@ -242,6 +228,14 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
             "cost_matrix_flat",
             torch.as_tensor(matrix.reshape(-1), dtype=torch.float32),
         )
+
+        start_one_hot = np.zeros(num_cities, dtype=np.float32)
+        start_one_hot[start_city] = 1.0
+        self.register_buffer(
+            "start_city_one_hot",
+            torch.as_tensor(start_one_hot, dtype=torch.float32),
+        )
+
         hidden1, hidden2 = hidden_sizes
 
         self.network = nn.Sequential(
@@ -253,28 +247,38 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
         )
 
     def encode_observation(self, observation: dict) -> torch.Tensor:
-        """Combine complete state features and fixed instance features."""
-    
+        """Combine dynamic state features and fixed instance features."""
+
         state_features = super().encode_observation(observation)
-    
+
+        # ========================================================
+        # ENCODE STATE AND INSTANCE FEATURES
+        # ========================================================
+        
         if self.normalize_cost_matrix:
             cost_matrix_input = (
                 self.cost_matrix_flat / self.grid_diagonal
             )
         else:
             cost_matrix_input = self.cost_matrix_flat
-    
-        features = torch.cat([
-            state_features,
-            cost_matrix_input,
-        ])
-    
+        
+        features = torch.cat(
+            [
+                state_features[:self.num_cities],
+                self.start_city_one_hot,
+                state_features[self.num_cities:],
+                cost_matrix_input,
+            ]
+        )
+        # ============================================================
+        # END TEMPORARY DIAGNOSTIC
+        # ============================================================
+
         if features.numel() != self.num_features:
             raise RuntimeError("Unexpected MLP input feature dimension.")
-    
+
         return features
 
     def forward(self, observation: dict) -> torch.Tensor:
         features = self.encode_observation(observation)
         return self.network(features)
-
