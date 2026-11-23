@@ -27,7 +27,6 @@ class TSPEnv(gym.Env):
         self.action_space = spaces.Discrete(n + 1)
         self.observation_space = spaces.Dict({
             "current_city": spaces.Discrete(n),
-            "start_city": spaces.Discrete(n),
             "visited_mask": spaces.MultiBinary(n),
             "total_cost": spaces.Box(
                 0.0, np.inf, shape=(1,), dtype=np.float32
@@ -128,7 +127,6 @@ class TSPEnv(gym.Env):
 
         return {
             "current_city": state["current_city"],
-            "start_city": state["start_city"],
             "visited_mask": mask,
             "total_cost": np.array(
                 [self.total_cost], dtype=np.float32
