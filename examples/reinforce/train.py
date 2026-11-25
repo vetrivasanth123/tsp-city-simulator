@@ -69,15 +69,25 @@ def train_reinforce(
                         "for the normalization experiment."
                     )
         
+                pickup_node_locations = np.asarray(
+                    [
+                        city["pickup"]["location"]
+                        for city in env.instance.cities
+                    ],
+                    dtype=np.float32,
+                )
+                
+                if pickup_node_locations.shape != (num_cities, 2):
+                    raise ValueError(
+                        "Pickup-node locations must have shape (num_cities, 2)."
+                    )
+                
                 policy = MLPSoftmaxPolicy(
                     num_cities=num_cities,
-                    cost_matrix=env.instance.cost_matrix,
+                    pickup_node_locations=pickup_node_locations,
                     start_city=start_city,
                     hidden_sizes=(128, 64),
-                    grid_width=grid_width,
-                    grid_height=grid_height,
-                    normalize_cost_matrix=True,  # Run B: normalized input
-                )
+)
         
                 # ============================================================
                 # END TEMPORARY DIAGNOSTIC
