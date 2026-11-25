@@ -54,44 +54,27 @@ def train_reinforce(
     if policy_type == "linear":
         policy = SoftmaxPolicy(num_cities)
         
-    else:
-        # ============================================================
-                # TEMPORARY DIAGNOSTIC: GRID-DIAGONAL COST NORMALIZATION
-                # Purpose: Pass the actual environment dimensions to the MLP.
-                # ============================================================
-        
-                grid_width = env.instance.width
-                grid_height = env.instance.height
-        
-                if grid_width is None or grid_height is None:
-                    raise ValueError(
-                        "Grid width and height must be specified in TSPInstance "
-                        "for the normalization experiment."
-                    )
-        
-                pickup_node_locations = np.asarray(
-                    [
-                        city["pickup"]["location"]
-                        for city in env.instance.cities
-                    ],
-                    dtype=np.float32,
+        else:
+            # Extract original pickup-node coordinates from the TSP instance.
+            pickup_node_locations = np.asarray(
+                [
+                    city["pickup"]["location"]
+                    for city in env.instance.cities
+                ],
+                dtype=np.float32,
+            )
+    
+            if pickup_node_locations.shape != (num_cities, 2):
+                raise ValueError(
+                    "Pickup-node locations must have shape (num_cities, 2)."
                 )
-                
-                if pickup_node_locations.shape != (num_cities, 2):
-                    raise ValueError(
-                        "Pickup-node locations must have shape (num_cities, 2)."
-                    )
-                
-                policy = MLPSoftmaxPolicy(
-                    num_cities=num_cities,
-                    pickup_node_locations=pickup_node_locations,
-                    start_city=start_city,
-                    hidden_sizes=(128, 64),
-)
-        
-                # ============================================================
-                # END TEMPORARY DIAGNOSTIC
-                # ============================================================
+    
+            policy = MLPSoftmaxPolicy(
+                num_cities=num_cities,
+                pickup_node_locations=pickup_node_locations,
+                start_city=start_city,
+                hidden_sizes=(128, 64),
+            )
     # TEMPORARY DIAGNOSTIC: save initial policy parameters
     initial_policy_state = copy.deepcopy(policy.state_dict())
     # ============================================================
