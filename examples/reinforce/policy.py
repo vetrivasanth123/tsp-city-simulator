@@ -161,79 +161,77 @@ class SoftmaxPolicy(BaseSoftmaxPolicy):
         return self.linear(features)
 
 
+
 class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
-    """Instance-specific MLP policy using the supplied cost matrix."""
+    """Instance-specific MLP policy using pickup-node coordinates."""
 
     def __init__(
         self,
         num_cities: int,
-        cost_matrix,
+        pickup_node_locations,
         start_city: int,
         hidden_sizes: tuple[int, int] = (128, 64),
-        grid_width: float | None = None,
-        grid_height: float | None = None,
-        normalize_cost_matrix: bool = False,
     ):
         super().__init__(num_cities)
 
         if not 0 <= start_city < num_cities:
             raise ValueError("start_city is outside the valid range.")
 
-        matrix = np.asarray(cost_matrix, dtype=np.float32)
+        # Convert the original pickup-node coordinates to a NumPy array.
+        pickup_locations = np.asarray(
+            pickup_node_locations,
+            dtype=np.float32,
+        )
 
-        if matrix.shape != (num_cities, num_cities):
+        # Validate the coordinate array.
+        if pickup_locations.shape != (num_cities, 2):
             raise ValueError(
-                "cost_matrix must have shape (num_cities, num_cities)."
+                "pickup_node_locations must have shape "
+                "(num_cities, 2)."
             )
 
-        if not np.isfinite(matrix).all():
-            raise ValueError("cost_matrix contains non-finite values.")
+        if not np.isfinite(pickup_locations).all():
+            raise ValueError(
+                "pickup_node_locations contains non-finite values."
+            )
 
         if len(hidden_sizes) != 2 or any(
             size < 1 for size in hidden_sizes
         ):
-            raise ValueError("hidden_sizes must contain two positive sizes.")
+            raise ValueError(
+                "hidden_sizes must contain two positive sizes."
+            )
 
         self.start_city = start_city
-        self.num_features = num_cities**2 + 3 * num_cities
 
-        # ========================================================
-        # COST MATRIX NORMALIZATION
-        # ========================================================
-        
-        if (
-            grid_width is None
-            or grid_height is None
-            or not np.isfinite(grid_width)
-            or not np.isfinite(grid_height)
-            or grid_width <= 0
-            or grid_height <= 0
-        ):
-            raise ValueError(
-                "Grid dimensions must be finite and positive."
-            )
-        
-        self.grid_diagonal = float(
-            np.hypot(grid_width, grid_height)
-        )
-        
-        self.normalize_cost_matrix = normalize_cost_matrix
-        
-        # ============================================================
-        # END TEMPORARY DIAGNOSTIC
-        # ============================================================
+        # Features:
+        # Current city one-hot: N
+        # Start city one-hot:   N
+        # Visited mask:         N
+        # Pickup coordinates:  2N
+        self.num_features = 5 * num_cities
 
-        # Store the existing instance matrix once; do not recalculate it.
+        # Store the original pickup-node coordinates as a model buffer.
         self.register_buffer(
-            "cost_matrix_flat",
-            torch.as_tensor(matrix.reshape(-1), dtype=torch.float32),
+            "pickup_node_locations",
+            torch.as_tensor(
+                pickup_locations,
+                dtype=torch.float32,
+            ),
         )
 
-        start_one_hot = np.zeros(num_cities, dtype=np.float32)
+        start_one_hot = np.zeros(
+            num_cities,
+            dtype=np.float32,
+        )
         start_one_hot[start_city] = 1.0
+
         self.register_buffer(
             "start_city_one_hot",
-            torch.as_tensor(start_one_hot, dtype=torch.float32),
+            torch.as_tensor(
+                start_one_hot,
+                dtype=torch.float32,
+            ),
         )
 
         hidden1, hidden2 = hidden_sizes
@@ -247,35 +245,28 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
         )
 
     def encode_observation(self, observation: dict) -> torch.Tensor:
-        """Combine dynamic state features and fixed instance features."""
+        """Combine dynamic state and fixed pickup-node coordinates."""
 
         state_features = super().encode_observation(observation)
 
-        # ========================================================
-        # ENCODE STATE AND INSTANCE FEATURES
-        # ========================================================
-        
-        if self.normalize_cost_matrix:
-            cost_matrix_input = (
-                self.cost_matrix_flat / self.grid_diagonal
-            )
-        else:
-            cost_matrix_input = self.cost_matrix_flat
-        
+        current_city_features = state_features[:self.num_cities]
+        visited_mask = state_features[self.num_cities:]
+
+        pickup_coordinates = self.pickup_node_locations.reshape(-1)
+
         features = torch.cat(
             [
-                state_features[:self.num_cities],
+                current_city_features,
                 self.start_city_one_hot,
-                state_features[self.num_cities:],
-                cost_matrix_input,
+                visited_mask,
+                pickup_coordinates,
             ]
         )
-        # ============================================================
-        # END TEMPORARY DIAGNOSTIC
-        # ============================================================
 
         if features.numel() != self.num_features:
-            raise RuntimeError("Unexpected MLP input feature dimension.")
+            raise RuntimeError(
+                "Unexpected MLP input feature dimension."
+            )
 
         return features
 
