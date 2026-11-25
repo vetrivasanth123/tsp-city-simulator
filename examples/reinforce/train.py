@@ -54,7 +54,7 @@ def train_reinforce(
     if policy_type == "linear":
         policy = SoftmaxPolicy(num_cities)
         
-        else:
+    else:
             # Extract original pickup-node coordinates from the TSP instance.
             pickup_node_locations = np.asarray(
                 [
@@ -74,7 +74,7 @@ def train_reinforce(
                 pickup_node_locations=pickup_node_locations,
                 start_city=start_city,
                 hidden_sizes=(128, 64),
-            )
+            )    
     # TEMPORARY DIAGNOSTIC: save initial policy parameters
     initial_policy_state = copy.deepcopy(policy.state_dict())
     # ============================================================
