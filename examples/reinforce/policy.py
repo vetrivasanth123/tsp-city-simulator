@@ -247,7 +247,9 @@ class MLPSoftmaxPolicy(BaseSoftmaxPolicy):
     def encode_observation(self, observation: dict) -> torch.Tensor:
         """Combine dynamic state and fixed pickup-node coordinates."""
 
-        state_features = super().encode_observation(observation)
+        state_features = super().encode_observation(observation).to(
+            self.pickup_node_locations.device
+        )
 
         current_city_features = state_features[:self.num_cities]
         visited_mask = state_features[self.num_cities:]
