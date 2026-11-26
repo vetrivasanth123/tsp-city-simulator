@@ -60,6 +60,7 @@ def main():
         summary["start_city"],
         rewards,
         trajectory,
+        gamma=summary.get("gamma", 1.0),
     )
 
     display(HTML(animation.to_html5_video()))
