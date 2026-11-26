@@ -340,6 +340,7 @@ def main():
         trajectory,
         total_cost,
         total_reward=total_reward,
+        gamma=config.gamma,
     )
 
     print("\nSimulation saved:", PROJECT_ROOT / ".simulation.json")
