@@ -11,6 +11,8 @@ from tsp.instance import TSPInstance
 from tsp.env import TSPEnv
 from tsp.cost import transition_cost, city_internal_cost, internal_cost_details
 import tsp.visualization as visualization
+from examples.reinforce.returns import calculate_returns
+
 
 
 def main():
@@ -20,6 +22,12 @@ def main():
     parser.add_argument("--height", type=float, required=True)
     parser.add_argument("--n-cities", type=int, required=True)
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        default=1.0,
+        help="Discount factor for the cumulative reward summary.",
+    )
 
     parser.add_argument(
         "--city-shape",
@@ -213,14 +221,23 @@ def main():
     simulator = env.simulator
     closed_tour = simulator.tour + [simulator.start_city]
 
+    rollout_rewards = [step["reward"] for step in trajectory]
+    
+    discounted_returns = calculate_returns(
+        rollout_rewards,
+        args.gamma,
+    )
+    
+    total_reward = discounted_returns[0]
+    total_cost = -total_reward
+    
     print("\nFinal result")
     print("------------")
     print("Start city:", simulator.start_city)
     print("Tour:", closed_tour)
     print("Closed:", simulator.done)
-    print("Total cost:", env.total_cost)
-    print("Total reward:", sum(x["reward"] for x in trajectory))
-    internal_details = internal_cost_details(instance)
+    print("Discounted total cost:", total_cost)
+    print("Discounted total reward:", total_reward)
 
     print("\nInternal cost details")
     print("---------------------")
@@ -247,7 +264,9 @@ def main():
         simulator,
         PROJECT_ROOT,
         trajectory,
-        env.total_cost,
+        total_cost,
+        total_reward=total_reward,
+        gamma=args.gamma,
     )
 
     print("\nSimulation saved:", PROJECT_ROOT / ".simulation.json")
