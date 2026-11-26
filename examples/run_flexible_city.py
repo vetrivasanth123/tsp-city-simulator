@@ -238,7 +238,7 @@ def main():
     print("Closed:", simulator.done)
     print("Discounted total cost:", total_cost)
     print("Discounted total reward:", total_reward)
-
+    internal_details = internal_cost_details(instance)
     print("\nInternal cost details")
     print("---------------------")
     
