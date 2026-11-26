@@ -126,7 +126,7 @@ def plot_tour(instance, tour, ax=None, title="TSP Tour"):
     return ax
 
 
-def save_simulation(simulator, project_root, trajectory, total_cost,total_reward=None,):
+def save_simulation(simulator,project_root,trajectory,total_cost,total_reward=None,gamma=1.0,):
     path = Path(project_root) / ".simulation.json"
     instance = simulator.instance
     rewards = [float(step["reward"]) for step in trajectory]
@@ -149,6 +149,7 @@ def save_simulation(simulator, project_root, trajectory, total_cost,total_reward
             "total_reward": float(
                 sum(rewards) if total_reward is None else total_reward
             ),
+            "gamma": float(gamma),
         },
     }
 
@@ -238,6 +239,7 @@ def animate_simulation(
     start_city,
     rewards,
     trajectory,
+    gamma=1.0,
     interval=180,
     frames_per_move=12,
 ):
@@ -338,6 +340,13 @@ def animate_simulation(
 
         step_data = trajectory[i]
 
+        discounted_reward = sum(
+            (gamma ** k) * rewards[k]
+            for k in range(i + 1)
+        )
+
+        discounted_cost = -discounted_reward
+
         summary.set_text(
             f"SUMMARY\n\n"
             f"{'Returning to start' if action == 'CLOSE' else f'Current city: {b}'}\n"
@@ -346,18 +355,25 @@ def animate_simulation(
             f"Internal cost: {step_data['internal_cost']:.4f}\n"
             f"Step cost: {step_data['step_cost']:.4f}\n"
             f"Reward: {step_data['reward']:.4f}\n"
-            f"Total cost: {-sum(rewards[:i + 1]):.4f}\n"
-            f"Total reward: {sum(rewards[:i + 1]):.4f}"
+            f"Discounted cost: {discounted_cost:.4f}\n"
+            f"Discounted reward: {discounted_reward:.4f}"
         )
-
-        if step > len(actions):
+        if step >= len(actions):
             current.set_data([xy[start_city, 0]], [xy[start_city, 1]])
             route_plot = route + [start_city]
             line.set_data(xy[route_plot, 0], xy[route_plot, 1])
+
+            final_discounted_reward = sum(
+                (gamma ** k) * rewards[k]
+                for k in range(len(rewards))
+            )
+
+            final_discounted_cost = -final_discounted_reward
+
             summary.set_text(
                 f"SUMMARY\n\nTour complete\n"
-                f"Total cost: {-sum(rewards):.4f}\n"
-                f"Total reward: {sum(rewards):.4f}"
+                f"Discounted cost: {final_discounted_cost:.4f}\n"
+                f"Discounted reward: {final_discounted_reward:.4f}"
             )
 
         return line, current, summary, *labels
